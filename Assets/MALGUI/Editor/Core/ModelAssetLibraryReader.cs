@@ -53,11 +53,11 @@ public static class ModelAssetLibraryReader {
     #region | Model Section Variables |
 
     /// <summary> The sum of all the vertices in a composite model; </summary>
-    private static int globalVertexCount;
+    public static int GlobalVertexCount { get; private set; }
     /// <summary> The sum of all the triangles in a composite model; </summary>
-    private static int globalTriangleCount;
+    public static int GlobalTriangleCount { get; private set; }
     /// <summary> Directory information on the target file; </summary>
-    private static FileInfo fileInfo;
+    public static FileInfo FileInfo { get; private set; }
 
     #endregion
 
@@ -226,9 +226,9 @@ public static class ModelAssetLibraryReader {
         prefab = null;
 
         /// Model Section Variables;
-        globalVertexCount = 0;
-        globalTriangleCount = 0;
-        fileInfo = null;
+        GlobalVertexCount = 0;
+        GlobalTriangleCount = 0;
+        FileInfo = null;
 
         /// Meshes Section Variables;
         meshRenderers = new List<MeshRendererPair>();
@@ -323,7 +323,7 @@ public static class ModelAssetLibraryReader {
         model = AssetImporter.GetAtPath(path) as ModelImporter;
         modelID = AssetDatabase.AssetPathToGUID(model.assetPath);
         prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        fileInfo = new FileInfo(path);
+        FileInfo = new FileInfo(path);
         UpdateMeshAndMaterialProperties();
         LoadMaterialDictionaries();
         int prefabCount = UpdatePrefabVariantInfo();
@@ -350,8 +350,8 @@ public static class ModelAssetLibraryReader {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(196), GUILayout.Height(100))) {
                             GUILayout.Label("Model Details", UIStyles.CenteredLabel);
                             GUILayout.FlexibleSpace();
-                            EditorUtils.DrawLabelPair("Vertex Count:", globalVertexCount.ToString());
-                            EditorUtils.DrawLabelPair("Triangle Count: ", globalTriangleCount.ToString());
+                            EditorUtils.DrawLabelPair("Vertex Count:", GlobalVertexCount.ToString());
+                            EditorUtils.DrawLabelPair("Triangle Count: ", GlobalTriangleCount.ToString());
                             EditorUtils.DrawLabelPair("Mesh Count: ", meshRenderers.Count.ToString());
                             EditorUtils.DrawLabelPair("Rigged: ", model.avatarSetup == 0 ? "No" : "Yes");
                         } GUILayout.FlexibleSpace();
@@ -375,10 +375,10 @@ public static class ModelAssetLibraryReader {
 
                 using (new EditorGUILayout.HorizontalScope()) {
                     GUIStyle extStyle = new GUIStyle(GUI.skin.label) { contentOffset = new Vector2(0, 2) };
-                    EditorUtils.DrawLabelPair("File Size:", EditorUtils.ProcessFileSize(fileInfo.Length), extStyle, GUILayout.MaxWidth(115));
+                    EditorUtils.DrawLabelPair("File Size:", EditorUtils.ProcessFileSize(FileInfo.Length), extStyle, GUILayout.MaxWidth(115));
                     GUILayout.FlexibleSpace();
                     EditorUtils.DrawLabelPair("Date Imported:", 
-                                              fileInfo.CreationTime.ToString().RemovePathEnd(" ").RemovePathEnd(" "), extStyle, GUILayout.MaxWidth(165));
+                                              FileInfo.CreationTime.ToString().RemovePathEnd(" ").RemovePathEnd(" "), extStyle, GUILayout.MaxWidth(165));
                     GUIContent content = new GUIContent("    Open File   ", EditorUtils.FetchIcon("d_Import"));
                     if (GUILayout.Button(content, UIStyles.TextureButton, GUILayout.MinWidth(120), GUILayout.Height(20))) {
                         AssetDatabase.OpenAsset(model);
@@ -1165,14 +1165,14 @@ public static class ModelAssetLibraryReader {
             MeshRenderer mr = mf.GetComponent<MeshRenderer>();
             meshRenderers.Add(new MeshRendererPair(mf, mr));
             var sharedMesh = mf.sharedMesh;
-            globalVertexCount += sharedMesh.vertexCount;
-            globalTriangleCount += sharedMesh.triangles.Length;
+            GlobalVertexCount += sharedMesh.vertexCount;
+            GlobalTriangleCount += sharedMesh.triangles.Length;
             AssignAllMaterialsInRenderer(mr);
         } foreach (SkinnedMeshRenderer smr in smrs) {
             meshRenderers.Add(new MeshRendererPair(null, smr));
             var sharedMesh = smr.sharedMesh;
-            globalVertexCount += sharedMesh.vertexCount;
-            globalTriangleCount += sharedMesh.triangles.Length;
+            GlobalVertexCount += sharedMesh.vertexCount;
+            GlobalTriangleCount += sharedMesh.triangles.Length;
             AssignAllMaterialsInRenderer(smr);
         }
     }
@@ -1288,14 +1288,6 @@ public static class ModelAssetLibraryReader {
         Rect rect = GUILayoutUtility.GetRect(width, height);
         if (meshPreview == null) {
             meshPreview = new MeshPreview(mesh);
-            if (mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Color)) {
-                var settingsField = typeof(MeshPreview).GetField("m_Settings", BindingFlags.NonPublic | BindingFlags.Instance);
-                var settings = settingsField.GetValue(meshPreview);
-                var displayField = settingsField.FieldType.GetField("m_DisplayMode", BindingFlags.NonPublic | BindingFlags.Instance);
-                displayField.SetValue(settings, 3);
-                var wireframeColor = settingsField.FieldType.GetField("m_DrawWire", BindingFlags.NonPublic | BindingFlags.Instance);
-                wireframeColor.SetValue(settings, false);
-            }
         } else {
             GUIStyle style = new GUIStyle();
             style.normal.background = customTextures.meshPreviewBackground;
@@ -1346,7 +1338,7 @@ public static class ModelAssetLibraryReader {
     /// </summary>
     private static void CloseMaterialInspectorWindow() {
         if (materialInspectorWindow != null && EditorWindow.HasOpenInstances<ModelAssetLibraryMaterialInspector>()) {
-            materialInspectorWindow.Close() ;
+            materialInspectorWindow.Close();
         }
     }
 
