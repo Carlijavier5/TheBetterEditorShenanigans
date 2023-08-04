@@ -10,27 +10,40 @@ using UnityEditor;
 public static class ModelAssetLibrary {
 
     /// Relevant Tool Information ///
-    /// The Model Asset Library runs on a static class, which is unable to store data persistently by 
-    /// conventional means. In a regular Editor session, static data will remain in memory until the 
-    /// Editor is restarted. The class will have access to static dictionaries that might be updated 
-    /// through calls from the GUI; while a separate, persistent version of these dictionaries rests 
-    /// immutable on a Scriptable Object, loaded when the GUI is Enabled, saved when the GUI is Disabled 
-    /// (or when forced to save by a GUI call). The newly acquired data is checked against the persistent 
-    /// data to detect changes in the Model File Hierarchy and modify the Prefab Hierarchy accordingly;
+    /// The Model Asset Library runs on several static classes, all of which are unable to store data 
+    /// persistently by conventional means. In a regular Editor session, static data will remain in memory 
+    /// until the Editor is restarted. The classes will have access to static dictionaries that might be updated 
+    /// through calls from the GUI; any persistent data generated through the library, by contrast, is saved 
+    /// on persistent scriptable objects, each linked to a potential reference by GUID;
     /// 
-    /// For safety reasons, the Model Asset Library operates discreetly on the Prefab Hierarchy. Its
-    /// operations in the designated Model Hierarchy are strictly Read-Only, whereas the Prefab Hierarchy
-    /// is regularly restructured to effectively "mirror" the former. The Tool does not access any project
-    /// data outside of the designated folders, unless otherwise specified by a manual, GUI operation;
+    /// For safety reasons, the Model Asset Library operates discreetly on the designated Hierarchy. Most
+    /// operations performed on the imported files themselves are read-only, save for certain Unity-exclusive
+    /// asset maps that might remain serialized in the Model Importer. The Tool does not access any project
+    /// data outside of the designated folders, unless otherwise specified by a manual GUI operation;
 
     #region | Configuration variables |
 
+    /// <summary> Path to the root folder of the hierarchy to search; </summary>
     public static string RootAssetPath { get { return ModelAssetLibraryConfigurationGUI.RootAssetPath; } }
+
+    /// <summary> File extensions to contemplate in the search; </summary>
     public static string[] ModelFileExtensions { 
         get {
             if (ModelAssetLibraryConfigurationGUI.ModelFileExtensions != null) {
                 return ModelAssetLibraryConfigurationGUI.ModelFileExtensions.Split(" ");
             } return null;
+        }
+    }
+
+    /// <summary> Internal reference to the data path, to avoid having to get it so often; </summary>
+    private static string dap;
+    /// <summary> Path to the folder where external model data will be stored; </summary>
+    public static string DataAssetPath {
+        get {
+            if (dap == null) {
+                var assetGUID = AssetDatabase.FindAssets($"t:Script {nameof(ModelAssetLibraryModelData)}");
+                dap = AssetDatabase.GUIDToAssetPath(assetGUID[0]).RemovePathEnd("\\/");
+            } return dap;
         }
     }
 
@@ -80,6 +93,9 @@ public static class ModelAssetLibrary {
 
     #region | Initialization & Update |
 
+    /// <summary>
+    /// Reload all static library data;
+    /// </summary>
     public static void Refresh() {
         LoadDictionaries();
         if (!string.IsNullOrWhiteSpace(RootAssetPath)

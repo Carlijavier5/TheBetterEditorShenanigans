@@ -110,8 +110,8 @@ namespace CJUtils {
         /// </summary>
         /// <param name="iconName"> A list of Unity's Built-In Icon Names can be found <a href="https://github.com/Zxynine/UnityEditorIcons/tree/main">here</a>; </param>
         /// <returns> Icon texture; </returns>
-        public static Texture FetchIcon(string iconName) {
-            return EditorGUIUtility.IconContent(iconName).image;
+        public static Texture2D FetchIcon(string iconName) {
+            return (Texture2D) EditorGUIUtility.IconContent(iconName).image;
         }
 
         /// <summary>
@@ -162,7 +162,7 @@ namespace CJUtils {
         /// <param name="texture"> Texture to draw; </param>
         /// <param name="width"> Width of the Box containing the texture; </param>
         /// <param name="height"> Height of the Box containing the texture; </param>
-        public static void DrawTexture(Texture texture, float width, float height) {
+        public static void DrawTexture(Texture2D texture, float width, float height) {
             GUILayout.Box(texture, GUILayout.Width(width), GUILayout.Height(height));
         }
 

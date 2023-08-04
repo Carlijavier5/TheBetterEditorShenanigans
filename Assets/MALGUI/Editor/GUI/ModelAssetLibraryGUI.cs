@@ -226,7 +226,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
         if (selectedFile == null) {
             EditorUtils.DrawScopeCenteredText("Selected Asset Data will be displayed here;");
         } else {
-            ModelAssetLibraryReader.ShowSelectedSection(activeSection);
+            ModelAssetLibraryReaderGUI.ShowSelectedSection(activeSection);
         }
     }
 
@@ -264,7 +264,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     public static void SetSelectedSection(SectionType sectionType) {
         if (activeSection != sectionType) {
             activeSection = sectionType;
-            ModelAssetLibraryReader.ResetSectionDependencies();
+            ModelAssetLibraryReaderGUI.RefreshSections();
         }
     }
 
