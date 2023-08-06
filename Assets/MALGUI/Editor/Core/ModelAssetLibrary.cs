@@ -24,26 +24,14 @@ public static class ModelAssetLibrary {
     #region | Configuration variables |
 
     /// <summary> Path to the root folder of the hierarchy to search; </summary>
-    public static string RootAssetPath { get { return ModelAssetLibraryConfigurationGUI.RootAssetPath; } }
+    public static string RootAssetPath { get { return ModelAssetLibraryConfigurationCore.RootAssetPath; } }
 
     /// <summary> File extensions to contemplate in the search; </summary>
     public static string[] ModelFileExtensions { 
         get {
-            if (ModelAssetLibraryConfigurationGUI.ModelFileExtensions != null) {
-                return ModelAssetLibraryConfigurationGUI.ModelFileExtensions.Split(" ");
-            } return null;
-        }
-    }
-
-    /// <summary> Internal reference to the data path, to avoid having to get it so often; </summary>
-    private static string dap;
-    /// <summary> Path to the folder where external model data will be stored; </summary>
-    public static string DataAssetPath {
-        get {
-            if (dap == null) {
-                var assetGUID = AssetDatabase.FindAssets($"t:Script {nameof(ModelAssetLibraryModelData)}");
-                dap = AssetDatabase.GUIDToAssetPath(assetGUID[0]).RemovePathEnd("\\/");
-            } return dap;
+            if (ModelAssetLibraryConfigurationCore.ModelFileExtensions != null) {
+                return ModelAssetLibraryConfigurationCore.ModelFileExtensions.Split(" ");
+            } return new string[0];
         }
     }
 
@@ -57,10 +45,12 @@ public static class ModelAssetLibrary {
     public class ModelData {
         public string path;
         public List<string> prefabIDList;
+        public ModelAssetLibraryExtData extData;
 
-        public ModelData(string path, List<string> prefabIDs) {
+        public ModelData(string path, List<string> prefabIDList, ModelAssetLibraryExtData extData) {
             this.path = path;
-            this.prefabIDList = prefabIDs;
+            this.prefabIDList = prefabIDList;
+            this.extData = extData;
         }
     } /// <summary> Maps a Model GUID to its file path and associated prefabs; </summary>
     public static Dictionary<string, ModelData> ModelDataDict { get; private set; }
@@ -98,6 +88,7 @@ public static class ModelAssetLibrary {
     /// </summary>
     public static void Refresh() {
         LoadDictionaries();
+        ModelAssetLibraryExtManager.Refresh();
         if (!string.IsNullOrWhiteSpace(RootAssetPath)
             && ModelFileExtensions != null 
             && ModelFileExtensions.Length > 0) {
@@ -231,7 +222,8 @@ public static class ModelAssetLibrary {
     private static void RegisterModel(string modelID) {
         if (!ModelDataDict.ContainsKey(modelID)) {
             string modelPath = AssetDatabase.GUIDToAssetPath(modelID);
-            ModelDataDict[modelID] = new ModelData(modelPath, new List<string>());
+            var extData = ModelAssetLibraryExtManager.FetchExtData(modelID);
+            ModelDataDict[modelID] = new ModelData(modelPath, new List<string>(), extData);
         }
     }
 
@@ -304,7 +296,6 @@ public static class ModelAssetLibrary {
     /// <br></br> Calls for a conditional clean-up of the original folder;
     /// </summary>
     /// <param name="prefabID"> ID of the Prefab to Move; </param>
-    /// <param name="modelID"> ID of the Model whose file path must be mirrored; </param>
     private static void RelocatePrefab(string prefabID) {
         string modelID = PrefabDataDict[prefabID].modelID;
         string originalFilePath = AssetDatabase.GUIDToAssetPath(prefabID);

@@ -11,7 +11,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     [MenuItem("Tools/Model Asset Library")]
     public static void ShowWindow() {
         if (HasOpenInstances<ModelAssetLibraryGUI>()) MainGUI.Close();
-        ModelAssetLibraryConfigurationGUI.LoadConfig();
+        ModelAssetLibraryConfigurationCore.LoadConfig();
         if (string.IsNullOrWhiteSpace(ModelAssetLibrary.RootAssetPath)) {
             ModelAssetLibraryConfigurationGUI.ShowWindow();
             return;
@@ -72,7 +72,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
 
     void OnEnable() {
         /// Initialize external scripts;
-        ModelAssetLibraryConfigurationGUI.LoadConfig();
+        ModelAssetLibraryConfigurationCore.LoadConfig();
         ModelAssetLibrary.Refresh();
         ModelAssetLibraryReader.FlushAssetData();
 

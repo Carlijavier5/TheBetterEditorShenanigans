@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using CJUtils;
 using static ModelAssetLibrary;
+using static ModelAssetLibraryConfigurationCore;
 
 public class ModelAssetLibraryConfigurationGUI : EditorWindow {
 
@@ -18,84 +19,67 @@ public class ModelAssetLibraryConfigurationGUI : EditorWindow {
     /// <summary> Reference to the Configuration Window; </summary>
     public static ModelAssetLibraryConfigurationGUI ConfigGUI { get; private set; }
 
-    /// <summary> Path to the Configuration JSON File; </summary>
-    private static string ConfigPath {
-        get {
-            var assetGUID = AssetDatabase.FindAssets($"t:Script {nameof(ModelAssetLibraryConfigurationGUI)}");
-            return AssetDatabase.GUIDToAssetPath(assetGUID[0]).RemovePathEnd("\\/") + "/Config.json";
-        }
-    }
-
-    /// <summary> Collection of assets used by the tool GUI; </summary>
-    public static ModelAssetLibraryAssets ToolAssets {
-        get {
-            var assetGUID = AssetDatabase.FindAssets($"t:ModelAssetLibraryAssets {nameof(ModelAssetLibraryAssets)}");
-            return AssetDatabase.LoadAssetAtPath<ModelAssetLibraryAssets>(AssetDatabase.GUIDToAssetPath(assetGUID[0]));
-        }
-    }
-
     /// <summary> Temporary string displayed in the text field; </summary>
     public static string potentialPath;
 
-    public struct Configuration {
-        public string rootAssetPath;
-        public string dictionaryDataPath;
-        public string modelFileExtension;
-    } public static Configuration Config;
-
-    /// <summary> Path to the root of the folder hierarchy where the library will search for assets; </summary>
-    public static string RootAssetPath { get { return Config.rootAssetPath; } }
-
-    /// <summary>
-    /// File extension of the assets to look for (without the dot);
-    /// </summary>
-    public static string ModelFileExtensions { get { return Config.modelFileExtension; } }
+    /// <summary> Temporary File Extension string displayed in the text field; </summary>
+    public static string potentialExtensions;
 
     private static Vector2 scrollPosition;
 
     void OnEnable() {
         LoadConfig();
+        potentialPath = Config.rootAssetPath;
+        potentialExtensions = Config.modelFileExtensions;
     }
 
+    /// <summary>
+    /// Refresh the Window reference if null;
+    /// </summary>
     private void OnFocus() {
-        if (HasOpenInstances<ModelAssetLibraryConfigurationGUI>()
-            && ConfigGUI == null) ConfigGUI = GetWindow<ModelAssetLibraryConfigurationGUI>();
+        if (ConfigGUI == null && HasOpenInstances<ModelAssetLibraryConfigurationGUI>()) {
+            ConfigGUI = GetWindow<ModelAssetLibraryConfigurationGUI>();
+        }
     }
 
     void OnGUI() {
         using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
-            bool pathIsInvalid = false;
+            bool configIsInvalid = false;
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxHeight(100))) {
                 EditorUtils.DrawSeparatorLines("Library Settings", true);
                 GUILayout.FlexibleSpace();
                 using (new EditorGUILayout.HorizontalScope()) {
                     potentialPath = EditorGUILayout.TextField("Root Asset Path", potentialPath);
                     if (AssetDatabase.IsValidFolder(potentialPath) && !potentialPath.EndsWith("/")) {
-                        if (potentialPath != Config.rootAssetPath) UpdateRootAssetPath(potentialPath);
-                    } else pathIsInvalid = true;
-                    if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_Folder Icon")), GUILayout.MaxWidth(40), GUILayout.MaxHeight(18 ))) {
-                        
-                        string res = EditorUtility.OpenFolderPanel("Set Root Path", "Assets", "");
-                        if (res != null && res.StartsWith(Application.dataPath)) {
-                            res = "Assets" + res.Substring(Application.dataPath.Length);
-                            UpdateRootAssetPath(res);
+                        if (potentialPath != Config.rootAssetPath) {
+                            UpdateRootAssetPath(potentialPath);
                         }
+                    } else configIsInvalid = true;
+                    if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_Folder Icon")), GUILayout.MaxWidth(40), GUILayout.MaxHeight(18 ))) {
+                        string res = OpenAndParseFolder();
+                        if (res != null) {
+                            UpdateRootAssetPath(res);
+                            potentialPath = res;
+                        } else Debug.LogWarning("The chosen path is invalid;");
                     }
                 } GUILayout.FlexibleSpace();
-                Config.modelFileExtension = EditorGUILayout.TextField("Model File Extension(s)", Config.modelFileExtension);
+                potentialExtensions = EditorGUILayout.TextField("Model File Extension(s)", potentialExtensions);
+                if (!string.IsNullOrWhiteSpace(potentialExtensions)) {
+                    UpdateModelExtension(potentialExtensions);
+                } else configIsInvalid = true;
                 GUILayout.FlexibleSpace();
-                if (pathIsInvalid) GUI.enabled = false;
+                if (configIsInvalid) GUI.enabled = false;
                 if (GUILayout.Button("Save Changes")) SaveConfig();
-                if (pathIsInvalid) GUI.enabled = true;
+                if (configIsInvalid) GUI.enabled = true;
             } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxHeight(100))) {
                 EditorUtils.DrawSeparatorLines("Data & Documentation", true);
                 GUILayout.FlexibleSpace();
-                if (pathIsInvalid) GUI.enabled = false;
+                if (configIsInvalid) GUI.enabled = false;
                 if (GUILayout.Button("Open Asset Library")) {
                     ModelAssetLibraryGUI.ShowWindow(); 
                 } if (GUILayout.Button("Reload Asset Library")) {
                     Refresh();
-                } if (pathIsInvalid) GUI.enabled = true;
+                } if (configIsInvalid) GUI.enabled = true;
                 if (GUILayout.Button("Open Documentation")) {
                     Debug.Log("There's no documentation to show here... YET! >:)");
                 }
@@ -113,39 +97,6 @@ public class ModelAssetLibraryConfigurationGUI : EditorWindow {
                 EditorUtils.DrawSeparatorLines("Model - Prefab Association");
                 BuildM2PDictionary(ModelDataDict);
             }
-        }
-    }
-
-    /// <summary>
-    /// Replace the Root Asset Path statically. The path still needs to be saved;
-    /// </summary>
-    /// <param name="newAssetPath"></param>
-    private static void UpdateRootAssetPath(string newAssetPath) {
-        Config.rootAssetPath = newAssetPath.Trim('/');
-        Refresh();
-        potentialPath = newAssetPath;
-    }
-
-    /// <summary>
-    /// Save configuration data as a JSON string on this script's folder;
-    /// </summary>
-    public static void SaveConfig() {
-        string data = JsonUtility.ToJson(Config);
-        using StreamWriter writer = new StreamWriter(ConfigPath);
-        writer.Write(data);
-    }
-
-    /// <summary>
-    /// Load configuration data from a JSON string located in this script's folder;
-    /// </summary>
-    public static void LoadConfig() {
-        if (File.Exists(ConfigPath)) {
-            using StreamReader reader = new StreamReader(ConfigPath);
-            string data = reader.ReadToEnd();
-            Config = JsonUtility.FromJson<Configuration>(data);
-            potentialPath = Config.rootAssetPath;
-        } else {
-            Config = new Configuration();
         }
     }
 

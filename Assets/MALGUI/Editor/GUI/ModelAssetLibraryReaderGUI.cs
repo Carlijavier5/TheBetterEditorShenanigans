@@ -567,7 +567,6 @@ public class ModelAssetLibraryReaderGUI {
                                                                   GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     rightMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
-                        int index = 1;
                         Dictionary<string, Material> tempDict = new Dictionary<string, Material>(StaticMaterialSlots);
                         foreach (KeyValuePair<string, Material> kvp in tempDict) {
                             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(50), GUILayout.MaxHeight(35))) {
@@ -582,11 +581,11 @@ public class ModelAssetLibraryReaderGUI {
                                     if (kvp.Value != null) EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(kvp.Value), 40, 40);
                                     else EditorUtils.DrawTexture(EditorUtils.FetchIcon("d_AutoLightbakingOff"), 40, 40);
                                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.selectionRect, GUILayout.MaxWidth(40), GUILayout.MaxHeight(8))) {
-                                    GUIStyle tempStyle = new GUIStyle(UIStyles.CenteredLabelBold);
+                                    GUIStyle tempStyle = new GUIStyle(EditorStyles.boldLabel);
                                     tempStyle.fontSize = 8;
-                                    GUILayout.Label((index).ToString(), tempStyle, GUILayout.MaxHeight(8));
+                                    GUILayout.Label(kvp.Key, tempStyle, GUILayout.MaxHeight(8), GUILayout.MaxWidth(40));
                                     GUILayout.FlexibleSpace();
-                                } index++;
+                                }
                             }
                         }
                     }

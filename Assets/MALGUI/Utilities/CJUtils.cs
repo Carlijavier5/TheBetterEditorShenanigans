@@ -12,6 +12,12 @@ namespace CJUtils {
 
     public static class UIColors {
 
+        public static Color Blue {
+            get {
+                return new Vector4(0.745f, 0.8275f, 0.86f, 1);
+            }
+        }
+
         public static Color Green {
             get {
                 return new Vector4(0.825f, 0.99f, 0.99f, 1);
@@ -87,6 +93,20 @@ namespace CJUtils {
                 Handles.DrawLine(new Vector2(hscope.rect.x, hscope.rect.y), new Vector2(hscope.rect.xMax, hscope.rect.y));
                 Handles.color = Color.white;
             }
+        }
+
+        /// <summary>
+        /// Non-handle version of a line;
+        /// </summary>
+        /// <param name="height"> Height of the line in pixels; </param>
+        public static void DrawSeparatorLine(int height) {
+            GUILayout.Space(4);
+            Rect rect = GUILayoutUtility.GetRect(1, height, GUILayout.ExpandWidth(true));
+            rect.height = height;
+            rect.xMin = 0;
+            rect.xMax = EditorGUIUtility.currentViewWidth;
+            EditorGUI.DrawRect(rect, Color.gray);
+            GUILayout.Space(4);
         }
 
         /// <summary>
@@ -216,6 +236,8 @@ namespace CJUtils {
             }
         }
 
+        #region Views and Bars;
+
         public static GUIStyle ToolbarText {
             get {
                 GUIStyle style = new GUIStyle();
@@ -257,6 +279,8 @@ namespace CJUtils {
                 return style;
             }
         }
+
+        #endregion
 
         #region | Buttons & Toggles |
 
@@ -317,6 +341,25 @@ namespace CJUtils {
                 return style;
             }
         }
+
+        public static GUIStyle ArrangedButtonSelected {
+            get {
+                GUIStyle style = new GUIStyle(EditorStyles.numberField) {
+                    alignment = TextAnchor.MiddleCenter,
+                    margin = new RectOffset(0, 0, 4, 0),
+                    normal = { textColor = UIColors.Blue }
+                }; return style;
+            }
+        }
+
+        public static GUIStyle ArrangedLabel {
+            get {
+                GUIStyle style = new GUIStyle(GUI.skin.label) { 
+                    contentOffset = new Vector2(0, 1) 
+                }; return style;
+            }
+        }
+        
 
         #endregion
 

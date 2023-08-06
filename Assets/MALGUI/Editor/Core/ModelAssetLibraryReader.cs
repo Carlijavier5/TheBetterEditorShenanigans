@@ -190,7 +190,7 @@ public static class ModelAssetLibraryReader {
         ModelID = null;
 
         if (CustomTextures == null) {
-            CustomTextures = ModelAssetLibraryConfigurationGUI.ToolAssets;
+            CustomTextures = ModelAssetLibraryConfigurationCore.ToolAssets;
         }
 
         /// Editor & Section Variables;
@@ -266,7 +266,7 @@ public static class ModelAssetLibraryReader {
         Prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         FileInfo = new FileInfo(path);
         UpdateMeshAndMaterialProperties();
-        LoadMaterialDictionaries();
+        UpdateInternalMaterialMap();
         int prefabCount = UpdatePrefabVariantInfo();
         RegisterPrefabLog("Found " + prefabCount + " Prefab Variant(s) in the Asset Library;");
         Undo.undoRedoPerformed += UpdateSlotChangedStatus;
@@ -305,6 +305,7 @@ public static class ModelAssetLibraryReader {
     /// </summary>
     /// <param name="name"> Name of the material binding to change; </param>
     /// <param name="newMaterial"> Material to place in the binding; </param>
+    /// <param name="Model"> Call the function for a different Model, for use outside of the Reader; </param>
     public static void ReplacePersistentMaterial(string name, Material newMaterial) {
 
         using (SerializedObject serializedObject = new SerializedObject(Model)) {
@@ -519,11 +520,11 @@ public static class ModelAssetLibraryReader {
     }
 
     /// <summary>
-    /// Fetches a bunch of serialized references from the Model Importer;
+    /// Fetches a bunch of internal serialized references from the Model Importer;
     /// </summary>
-    private static void LoadMaterialDictionaries() {
-        OriginalMaterialSlots = new Dictionary<string, Material>();
-        using (SerializedObject serializedObject = new SerializedObject(Model)) {
+    public static Dictionary<string, Material> LoadInternalMaterialMap(ModelImporter model) {
+        Dictionary<string, Material> internalMap = new Dictionary<string, Material>();
+        using (SerializedObject serializedObject = new SerializedObject(model)) {
             SerializedProperty materials = serializedObject.FindProperty("m_Materials");
             SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
 
@@ -548,20 +549,28 @@ public static class ModelAssetLibraryReader {
                     }
 
                     if (lacksMaterialKey) {
-                        var lastIndex = extObjects.arraySize++;
-                        var currentSerializedProperty = extObjects.GetArrayElementAtIndex(lastIndex);
-                        currentSerializedProperty.FindPropertyRelative("first.name").stringValue = name;
-                        currentSerializedProperty.FindPropertyRelative("first.type").stringValue = type;
-                        currentSerializedProperty.FindPropertyRelative("first.assembly").stringValue = assembly;
-                        currentSerializedProperty.FindPropertyRelative("second").objectReferenceValue = null;
+                        int lastIndex = extObjects.arraySize++;
+                        SerializedProperty extObj = extObjects.GetArrayElementAtIndex(lastIndex);
+                        extObj.FindPropertyRelative("first.name").stringValue = name;
+                        extObj.FindPropertyRelative("first.type").stringValue = type;
+                        extObj.FindPropertyRelative("first.assembly").stringValue = assembly;
+                        extObj.FindPropertyRelative("second").objectReferenceValue = CustomTextures.highlight;
                     }
                 }
             } for (int i = 0; i < extObjects.arraySize; i++) {
                 SerializedProperty extObject = extObjects.GetArrayElementAtIndex(i);
                 string key = extObject.FindPropertyRelative("first.name").stringValue;
-                OriginalMaterialSlots[key] = extObject.FindPropertyRelative("second").objectReferenceValue as Material;
+                internalMap[key] = extObject.FindPropertyRelative("second").objectReferenceValue as Material;
             } serializedObject.ApplyModifiedPropertiesWithoutUndo();
-        } StaticMaterialSlots = new Dictionary<string, Material>(OriginalMaterialSlots);
+        } return internalMap;
+    }
+
+    /// <summary>
+    /// Assigns copies of the material maps in the importer to the static maps in the reader;
+    /// </summary>
+    private static void UpdateInternalMaterialMap() {
+        OriginalMaterialSlots = LoadInternalMaterialMap(Model);
+        StaticMaterialSlots = new Dictionary<string, Material>(OriginalMaterialSlots);
     }
 
     /// <summary>
@@ -683,7 +692,7 @@ public static class ModelAssetLibraryReader {
     /// Dispose of the current Object Preview Editor;
     /// <br></br> May be called by the Material Inspector to update the Preview;
     /// </summary>
-    private static void CleanObjectPreview() {
+    public static void CleanObjectPreview() {
         try {
             if (ReaderObjectPreview != null) {
                 Editor.DestroyImmediate(ReaderObjectPreview);

@@ -8,37 +8,37 @@ ModelImporter:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Cork
-    second: {fileID: 2100000, guid: 3d92c13a401928e4da7e22e76225a5bc, type: 2}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Eyes
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Hair
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Shoulder Guards
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: String
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Toon Color
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Toon Color.001
-    second: {instanceID: 0}
+    second: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
