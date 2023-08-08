@@ -112,9 +112,9 @@ Material:
     - _GlossyReflections: 0
     - _Line_Noise: 100
     - _Metallic: 0
-    - _Minimum_Outline: 0.94
+    - _Minimum_Outline: 2
     - _OcclusionStrength: 1
-    - _Outline_Thickness: 0.024
+    - _Outline_Thickness: 0.005
     - _Parallax: 0.005
     - _QueueControl: 0
     - _QueueOffset: 0

@@ -150,7 +150,7 @@ public static class ModelAssetLibraryReader {
     #region | Prefab Section Variables |
 
     /// <summary> The prefab name currently written in the naming Text Field; </summary>
-    public static string NewPrefabName { get; set; }
+    public static string name { get; set; }
 
     /// <summary> Class containing relevant Prefab Variant information; </summary>
     public class PrefabVariantData {
@@ -220,7 +220,7 @@ public static class ModelAssetLibraryReader {
 
         /// Prefab Section Variables;
         PrefabVariantInfo = null;
-        NewPrefabName = null;
+        name = null;
         NameCondition = 0;
         PrefabActionLog = new Stack<string>();
 
@@ -404,26 +404,31 @@ public static class ModelAssetLibraryReader {
     #region | Prefab Helpers |
 
     /// <summary>
-    /// Validate the active filename;
+    /// Validate a filename in terms of content, convention, and File I/O availability;
+    /// </summary>
+    /// <returns> True if the name is valid, false otherwise; </returns>
+    public static InvalidNameCondition ValidateFilename(string path, string name) {
+        if (string.IsNullOrWhiteSpace(name)) {
+            return InvalidNameCondition.Empty;
+        } if (!ModelAssetLibrary.NoAssetAtPath(path)) {
+            return InvalidNameCondition.Overwrite;
+        } if (NameViolatesConvention(name)) {
+            return InvalidNameCondition.Convention;
+        } List<char> invalidChars = new List<char>(Path.GetInvalidFileNameChars());
+        foreach (char character in name) {
+            if (invalidChars.Contains(character)) {
+                return InvalidNameCondition.Symbol;
+            }
+        } return InvalidNameCondition.None;
+    }
+
+    /// <summary>
+    /// Override for convenient internal use;
     /// </summary>
     /// <returns> True if the name is valid, false otherwise; </returns>
     public static bool ValidateFilename() {
-        if (string.IsNullOrWhiteSpace(NewPrefabName)) {
-            NameCondition = InvalidNameCondition.Empty;
-            return false;
-        } if (!ModelAssetLibrary.NoAssetAtPath(Model.assetPath.ToPrefabPathWithName(NewPrefabName))) {
-            NameCondition = InvalidNameCondition.Overwrite;
-            return false;
-        } if (NameViolatesConvention(NewPrefabName)) {
-            NameCondition = InvalidNameCondition.Convention;
-            return false;
-        } List<char> invalidChars = new List<char>(Path.GetInvalidFileNameChars());
-        foreach (char character in NewPrefabName) {
-            if (invalidChars.Contains(character)) {
-                NameCondition = InvalidNameCondition.Symbol;
-                return false;
-            }
-        } return true;
+        NameCondition = ValidateFilename(Model.assetPath.ToPrefabPathWithName(name), name);
+        return NameCondition == 0;
     }
 
     private static bool NameViolatesConvention(string fileName) {
@@ -624,7 +629,7 @@ public static class ModelAssetLibraryReader {
         if (name == null) name = Model.assetPath.IsolatePathEnd("\\/").RemovePathEnd(".");
         string annexedName = name + (annex > 0 ? "_" + annex : "");
         if (ModelAssetLibrary.NoAssetAtPath(basePath + "/" + annexedName + ".prefab")) {
-            NewPrefabName = annexedName;
+            ModelAssetLibraryReader.name = annexedName;
         } else if (annex < 100) { /// Cheap stack overflow error prevention;
             annex++;
             UpdateDefaultPrefabName(basePath, name, annex);

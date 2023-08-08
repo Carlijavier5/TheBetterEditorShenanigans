@@ -639,14 +639,14 @@ public class ModelAssetLibraryReaderGUI {
                     GUILayout.Label("Register New Prefab Variant:");
                     if (GUILayout.Button("Validate & Register")) {
                         if (ValidateFilename()) {
-                            RegisterPrefab(ModelID, NewPrefabName);
-                            RegisterPrefabLog("Added Prefab Variant: " + NewPrefabName + ".prefab;");
+                            RegisterPrefab(ModelID, name);
+                            RegisterPrefabLog("Added Prefab Variant: " + name + ".prefab;");
                         }
                     }
-                } string impendingName = EditorGUILayout.TextField("Variant Name:", NewPrefabName);
-                if (impendingName != NewPrefabName) {
+                } string impendingName = EditorGUILayout.TextField("Variant Name:", name);
+                if (impendingName != name) {
                     if (NameCondition != 0) NameCondition = 0;
-                    NewPrefabName = impendingName;
+                    name = impendingName;
                 } DrawNameConditionBox();
                 GUILayout.FlexibleSpace();
                 GUIContent folderContent = new GUIContent(" Open Prefabs Folder", EditorUtils.FetchIcon("d_Folder Icon"));
@@ -691,8 +691,8 @@ public class ModelAssetLibraryReaderGUI {
                 EditorGUILayout.HelpBox("A file with that name already exists in the target directory. Do you wish to overwrite it?", MessageType.Warning);
                 using (new EditorGUILayout.HorizontalScope()) {
                     if (GUILayout.Button("Overwrite")) {
-                        RegisterPrefab(ModelID, NewPrefabName);
-                        RegisterPrefabLog("Replaced Prefab Variant: " + NewPrefabName + ".prefab;");
+                        RegisterPrefab(ModelID, name);
+                        RegisterPrefabLog("Replaced Prefab Variant: " + name + ".prefab;");
                     } if (GUILayout.Button("Cancel")) {
                         NameCondition = InvalidNameCondition.None;
                     }

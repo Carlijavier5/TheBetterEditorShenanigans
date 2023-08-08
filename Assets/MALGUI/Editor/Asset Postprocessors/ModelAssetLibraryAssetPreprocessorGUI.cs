@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -157,14 +156,14 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private void DrawNewMaterials() {
-        if (TempMaterialMap.Count > 0) {
-            foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
-                using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
-                    GUILayout.Label(kvp.Key, UIStyles.CenteredLabelBold);
-                    EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false);
-                }
-            }
-        } else {
+        int amount = 0;
+        foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
+            if (string.IsNullOrWhiteSpace(kvp.Key) || !MaterialOverrideMap[kvp.Key].isNew) continue;
+            using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                GUILayout.Label(kvp.Key, UIStyles.CenteredLabelBold);
+                EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false);
+            } amount++;
+        } if (amount == 0) {
             GUILayout.Label("- Empty -", UIStyles.CenteredLabelBold);
             EditorGUILayout.Separator();
         }
@@ -223,7 +222,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                         using (new EditorGUILayout.HorizontalScope()) {
                             GUI.color = UIColors.Blue;
                             if (GUILayout.Button("Replace")) GenerateTemporaryMaterial(key);
-                            if (materialsAreEqual) GUI.enabled = true;
+                            GUI.enabled = true;
                             GUI.color = UIColors.Red;
                             if (GUILayout.Button("Remove")) RemoveNewMaterial(key);
                         } GUI.color = Color.white;
@@ -235,8 +234,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                 } else {
                     using (new EditorGUILayout.HorizontalScope()) {
                         GUILayout.Label("Material:", GUILayout.MaxWidth(52));
+                        bool wasAssigned = tempMaterials[i] != null;
                         tempMaterials[i] = (Material) EditorGUILayout.ObjectField(tempMaterials[i], typeof(Material), false);
-                        if (tempMaterials[i] != null && tempMaterials[i] != data.materialRef) UpdateMaterialRef(key, tempMaterials[i]);
+                        if ( (tempMaterials[i] != null && tempMaterials[i] != data.materialRef)
+                            || (wasAssigned && tempMaterials[i] == null) ) UpdateMaterialRef(key, tempMaterials[i]);
                     }
                 }
             }

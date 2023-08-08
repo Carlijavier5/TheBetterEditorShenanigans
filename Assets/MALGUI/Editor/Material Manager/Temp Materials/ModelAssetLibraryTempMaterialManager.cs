@@ -1,5 +1,4 @@
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -7,7 +6,7 @@ using UnityEditor;
 public static class ModelAssetLibraryTempMaterialManager {
 
     private static string tempPath;
-    private static string TempMaterialPath { 
+    public static string TempMaterialPath { 
         get {
             if (tempPath == null) {
                 string[] guids = AssetDatabase.FindAssets($"t:Script {nameof(ModelAssetLibraryTempMaterialManager)}");
@@ -36,7 +35,7 @@ public static class ModelAssetLibraryTempMaterialManager {
     public static void CleanAllMaterials() {
         if (tempMaterialDict == null) return;
         foreach (KeyValuePair<Material, string> kvp in tempMaterialDict) {
-            CleanMaterial(kvp.Key);
+            if (File.Exists(kvp.Value)) AssetDatabase.DeleteAsset(kvp.Value);
         } tempMaterialDict = null;
     }
 }
