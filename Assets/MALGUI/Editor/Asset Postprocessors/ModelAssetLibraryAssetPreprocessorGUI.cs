@@ -31,12 +31,16 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private Material[] tempMaterials;
+    private string shaderKey;
 
     private GameObject modelGO;
-    private Vector2 materialScroll;
+
+    private Vector2 materialsNewScroll;
+    private Vector2 materialSlotScroll;
 
     void OnEnable() {
         ModelAssetLibraryReader.CleanObjectPreview();
+        if (Options == null) return;
         if (Options.model != null) {
             modelGO = AssetDatabase.LoadAssetAtPath<GameObject>(Options.model.assetPath);
         } ProcessLibraryData(Options.model);
@@ -45,12 +49,14 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
 
     void OnDisable() {
         ModelAssetLibraryReader.CleanObjectPreview();
-        FlushImportData();
+        if (Options != null) FlushImportData();
     }
 
     void OnGUI() {
-
-        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+        if (Options == null || Options.model == null) {
+            EditorUtils.DrawScopeCenteredText("Unity revolted against this window.\nPlease reload it!") ;
+            return;
+        } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
             EditorUtils.DrawSeparatorLines("Core Import Settings", true);
             using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                 GUILayout.Label("Import Mode:", UIStyles.ArrangedLabel);
@@ -80,13 +86,13 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     GUILayout.Label("Material Override:", UIStyles.ArrangedLabel);
                     if (GUILayout.Button("None", Options.materialOverrideMode == MaterialOverrideMode.None
                                                  ? UIStyles.ArrangedButtonSelected : GUI.skin.button, GUILayout.MaxWidth(70))) {
-                        Options.materialOverrideMode = MaterialOverrideMode.None;
+                        SetMaterialOverrideMode(MaterialOverrideMode.None);
                     } if (GUILayout.Button("Single", Options.materialOverrideMode == MaterialOverrideMode.Single
                                                      ? UIStyles.ArrangedButtonSelected : GUI.skin.button, GUILayout.MaxWidth(70))) {
-                        Options.materialOverrideMode = MaterialOverrideMode.Single;
+                        SetMaterialOverrideMode(MaterialOverrideMode.Single);
                     } if (GUILayout.Button("Multiple", Options.materialOverrideMode == MaterialOverrideMode.Multiple
                                                        ? UIStyles.ArrangedButtonSelected : GUI.skin.button, GUILayout.MaxWidth(70))) {
-                        Options.materialOverrideMode = MaterialOverrideMode.Multiple;
+                        SetMaterialOverrideMode(MaterialOverrideMode.Multiple);
                     }
                 } if (Options.materialOverrideMode == MaterialOverrideMode.Multiple) {
                     using (new EditorGUILayout.HorizontalScope()) {
@@ -95,13 +101,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                             Options.useSingleShader = EditorGUILayout.Toggle(Options.useSingleShader);
                         } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                             if (!Options.useSingleShader) GUI.enabled = false;
-                            Rect position = EditorGUILayout.GetControlRect();
                             GUIContent shaderContent = new GUIContent(Options.shader == null ? "No Selected Shader" : Options.shader.name);
-                            DrawShaderPopup(shaderContent, UpdateGlobalShader);
-
+                            DrawShaderPopup(shaderContent, null);
                             if (!Options.useSingleShader) GUI.enabled = true;
-                            //Options.shader = EditorGUILayout.ObjectField(Options.shader, typeof(Shader), false) as Shader;
-                        }   
+                        }
                     }
                 } DrawMaterialSettings();
             } else {
@@ -117,32 +120,40 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private void DrawMaterialSettings() {
-        using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
+
+        if (modelGO != null) {
             switch (Options.materialOverrideMode) {
                 case MaterialOverrideMode.Single:
+                    using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                        using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                            GUILayout.Label("Preview", UIStyles.CenteredLabel);
+                            ModelAssetLibraryReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                        }
+                    } DrawMaterialSlot(SingleKey, MaterialOverrideMap[SingleKey], 0);
                     break;
                 case MaterialOverrideMode.Multiple:
-                    if (modelGO != null) {
+                    using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                                 GUILayout.Label("Preview", UIStyles.CenteredLabel);
                                 ModelAssetLibraryReader.DrawObjectPreviewEditor(modelGO, 96, 112);
                             } using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.MaxWidth(96))) {
                                 EditorUtils.DrawSeparatorLines("New Materials", true);
-                                using (new EditorGUILayout.ScrollViewScope(Vector2.zero)) {
+                                using (var view = new EditorGUILayout.ScrollViewScope(materialsNewScroll)) {
+                                    materialsNewScroll = view.scrollPosition;
                                     DrawNewMaterials();
                                 }
                             }
                         } using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             EditorUtils.DrawSeparatorLines("Available Slots", true);
-                            using (var view = new EditorGUILayout.ScrollViewScope(materialScroll)) {
-                                materialScroll = view.scrollPosition;
+                            using (var view = new EditorGUILayout.ScrollViewScope(materialSlotScroll)) {
+                                materialSlotScroll = view.scrollPosition;
                                 DrawAvailableSlots();
                             }
                         }
                     } break;
             }
-        }
+        } else GUILayout.Label("Something went wrong here, ask Carlos or something;", UIStyles.CenteredLabelBold);
     }
 
     private void DrawNewMaterials() {
@@ -160,74 +171,91 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private void DrawAvailableSlots() {
-        int i = 0;
+        int i = 1;
         foreach (KeyValuePair<string, MaterialData> kvp in MaterialOverrideMap) {
-            using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
-                GUILayout.Label(kvp.Key, UIStyles.CenteredLabelBold);
-            } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
-                    GUILayout.Label("Origin:", UIStyles.ArrangedLabel);
-                    if (GUILayout.Button("New", kvp.Value.isNew
-                                                   ? UIStyles.ArrangedButtonSelected : GUI.skin.button, GUILayout.MaxWidth(70))) {
-                        if (!kvp.Value.isNew) ToggleMaterialMap(kvp.Key);
-                    } if (GUILayout.Button("Remap", kvp.Value.isNew
-                                                      ? GUI.skin.button : UIStyles.ArrangedButtonSelected, GUILayout.MaxWidth(70))) {
-                        if (kvp.Value.isNew) ToggleMaterialMap(kvp.Key);
-                    }
-                } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
-                    if (kvp.Value.isNew) {
-                        using (new EditorGUILayout.HorizontalScope()) {
-                            GUILayout.Label("Name:", GUILayout.MaxWidth(46));
-                            kvp.Value.name = EditorGUILayout.TextField(kvp.Value.name);
-                        } using (new EditorGUILayout.HorizontalScope()) {
-                            GUILayout.Label("Albedo:", GUILayout.MaxWidth(46));
-                            kvp.Value.albedoMap = (Texture2D) EditorGUILayout.ObjectField(kvp.Value.albedoMap, typeof(Texture2D), false);
-                        } using (new EditorGUILayout.HorizontalScope()) {
-                            GUILayout.Label("Normal:", GUILayout.MaxWidth(46));
-                            kvp.Value.normalMap = (Texture2D) EditorGUILayout.ObjectField(kvp.Value.normalMap, typeof(Texture2D), false);
-                        } if (!Options.useSingleShader) {
-                            using (new EditorGUILayout.HorizontalScope()) {
-                                GUILayout.Label("Shader:", GUILayout.MaxWidth(46));
-                                kvp.Value.shader = (Shader) EditorGUILayout.ObjectField(kvp.Value.shader, typeof(Shader), false);
-                            }
-                        } bool validMaterial = ValidateTemporaryMaterial(kvp.Key);
-                        if (!validMaterial) GUI.enabled = false;
-                        bool containsKey = TempMaterialMap.ContainsKey(kvp.Key);
-                        if (containsKey) {
-                            bool materialsAreEqual = ValidateMaterialEquality(kvp.Key);
-                            if (materialsAreEqual) GUI.enabled = false;
-                            if (GUILayout.Button("Replace Material")) GenerateTemporaryMaterial(kvp.Key);
-                            if (materialsAreEqual) GUI.enabled = true;
-                        } else {
-                            if (GUILayout.Button("Generate Material")) GenerateTemporaryMaterial(kvp.Key);
-                        } if (!validMaterial) GUI.enabled = true;
-                    } else {
-                        using (new EditorGUILayout.HorizontalScope()) {
-                            GUILayout.Label("Material:", GUILayout.MaxWidth(52));
-                            tempMaterials[i] = (Material) EditorGUILayout.ObjectField(tempMaterials[i], typeof(Material), false);
-                            if (tempMaterials[i] != null && tempMaterials[i] != kvp.Value.materialRef) UpdateMaterialRef(kvp.Key, tempMaterials[i]);
-                        }
-                    }
-                }
-            } EditorGUILayout.Separator();
+            if (string.IsNullOrWhiteSpace(kvp.Key)) continue;
+            DrawMaterialSlot(kvp.Key, kvp.Value, i);
+            EditorGUILayout.Separator();
             EditorUtils.DrawSeparatorLine(1);
             EditorGUILayout.Separator();
             i++;
         }
     }
 
-    private void DrawShaderPopup(GUIContent shaderContent, System.Action<Shader> method) {
+    private void DrawMaterialSlot(string key, MaterialData data, int i) {
+        using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
+            if (string.IsNullOrEmpty(key)) {
+                GUILayout.Label("Global Material", UIStyles.CenteredLabelBold);
+            } else GUILayout.Label(key, UIStyles.CenteredLabelBold);
+        } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+            using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+                GUILayout.Label("Origin:", UIStyles.ArrangedLabel);
+                if (GUILayout.Button("New", data.isNew
+                                                ? UIStyles.ArrangedButtonSelected : GUI.skin.button, GUILayout.MaxWidth(70))) {
+                    if (!data.isNew) ToggleMaterialMap(key);
+                } if (GUILayout.Button("Remap", data.isNew
+                                                    ? GUI.skin.button : UIStyles.ArrangedButtonSelected, GUILayout.MaxWidth(70))) {
+                    if (data.isNew) ToggleMaterialMap(key);
+                }
+            } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+                if (data.isNew) {
+                    using (new EditorGUILayout.HorizontalScope()) {
+                        GUILayout.Label("Name:", GUILayout.MaxWidth(46));
+                        data.name = EditorGUILayout.TextField(data.name);
+                    } using (new EditorGUILayout.HorizontalScope()) {
+                        GUILayout.Label("Albedo:", GUILayout.MaxWidth(46));
+                        data.albedoMap = (Texture2D) EditorGUILayout.ObjectField(data.albedoMap, typeof(Texture2D), false);
+                    } using (new EditorGUILayout.HorizontalScope()) {
+                        GUILayout.Label("Normal:", GUILayout.MaxWidth(46));
+                        data.normalMap = (Texture2D) EditorGUILayout.ObjectField(data.normalMap, typeof(Texture2D), false);
+                    } if (!Options.useSingleShader || Options.materialOverrideMode == MaterialOverrideMode.Single) {
+                        using (var scope = new EditorGUILayout.HorizontalScope()) {
+                            GUILayout.Label("Shader:", GUILayout.MaxWidth(46));
+                            GUIContent shaderContent = new GUIContent(data.shader == null ? "No Shader Selected" : data.shader.name);
+                            DrawShaderPopup(shaderContent, key);
+                        }
+                    } bool validMaterial = ValidateTemporaryMaterial(key);
+                    if (!validMaterial) GUI.enabled = false;
+                    bool containsKey = TempMaterialMap.ContainsKey(key);
+                    if (containsKey) {
+                        bool materialsAreEqual = ValidateMaterialEquality(key);
+                        if (materialsAreEqual) GUI.enabled = false;
+                        using (new EditorGUILayout.HorizontalScope()) {
+                            GUI.color = UIColors.Blue;
+                            if (GUILayout.Button("Replace")) GenerateTemporaryMaterial(key);
+                            if (materialsAreEqual) GUI.enabled = true;
+                            GUI.color = UIColors.Red;
+                            if (GUILayout.Button("Remove")) RemoveNewMaterial(key);
+                        } GUI.color = Color.white;
+                    } else {
+                        GUI.color = UIColors.Green;
+                        if (GUILayout.Button("Generate Material")) GenerateTemporaryMaterial(key);
+                        GUI.color = Color.white;
+                    } if (!validMaterial) GUI.enabled = true;
+                } else {
+                    using (new EditorGUILayout.HorizontalScope()) {
+                        GUILayout.Label("Material:", GUILayout.MaxWidth(52));
+                        tempMaterials[i] = (Material) EditorGUILayout.ObjectField(tempMaterials[i], typeof(Material), false);
+                        if (tempMaterials[i] != null && tempMaterials[i] != data.materialRef) UpdateMaterialRef(key, tempMaterials[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    private void DrawShaderPopup(GUIContent shaderContent, string key) {
+        shaderKey = key;
+        Rect position = EditorGUILayout.GetControlRect(GUILayout.MinWidth(135));
         if (EditorGUI.DropdownButton(position, shaderContent, FocusType.Keyboard, EditorStyles.miniPullDown)) {
-            OnShaderResult += method;
+            OnShaderResult += ApplyShaderResult;
             ShowShaderSelectionMagic(position);
         }
     }
 
-    private void UpdateGlobalShader(Shader shader) {
-        Options.shader = shader;
-    }
-
-    private void UpdateLocalMaterial(Shader shader) {
-
+    private void ApplyShaderResult(Shader shader) {
+        if (shaderKey == null) Options.shader = shader;
+        else MaterialOverrideMap[shaderKey].shader = shader;
+        shaderKey = null;
+        OnShaderResult -= ApplyShaderResult;
     }
 }

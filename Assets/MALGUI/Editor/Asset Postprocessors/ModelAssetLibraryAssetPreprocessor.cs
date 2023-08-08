@@ -1,8 +1,10 @@
+using System.IO;
 using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using Reader = ModelAssetLibraryReader;
+using TempManager = ModelAssetLibraryTempMaterialManager;
 
 public static class ModelAssetLibraryAssetPreprocessor {
 
@@ -27,15 +29,38 @@ public static class ModelAssetLibraryAssetPreprocessor {
         public Shader shader;
     } public static Dictionary<string, MaterialData> MaterialOverrideMap { get; set; }
 
+    public static string SingleKey { get { return ""; } private set { SingleKey = value; } }
+
     public static Dictionary<string, Material> TempMaterialMap { get; private set; }
 
     private static Dictionary<string, Material> originalInternalMap;
 
     public static System.Action<Shader> OnShaderResult;
 
+    public static void SetMaterialOverrideMode(MaterialOverrideMode mom) {
+        switch (mom) {
+            case MaterialOverrideMode.Single:
+                if (MaterialOverrideMap[SingleKey].isNew) {
+                    if (TempMaterialMap.ContainsKey(SingleKey)) {
+                        ReplaceGlobalMapping(TempMaterialMap[SingleKey]);
+                    } else ReplaceGlobalMapping();
+                } else {
+                    if (MaterialOverrideMap[SingleKey].materialRef != null) {
+                        ReplaceGlobalMapping(MaterialOverrideMap[SingleKey].materialRef);
+                    } else ReplaceGlobalMapping();
+                } break;
+            case MaterialOverrideMode.Multiple:
+                foreach (KeyValuePair<string, MaterialData> kvp in MaterialOverrideMap) {
+                    
+                } break;
+        } Options.materialOverrideMode = mom;
+    }
+
     public static void UpdateMaterialRef(string key, Material material) {
+        bool restore = material == null;
         MaterialOverrideMap[key].materialRef = material;
-        ReplacePersistentMaterial(key, material);
+        if (string.IsNullOrEmpty(key)) ReplaceGlobalMapping(restore ? null : material);
+        else ReplacePersistentMaterial(key, restore ? material : originalInternalMap[key]);
     }
 
     /// <summary>
@@ -44,7 +69,8 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// </summary>
     /// <param name="key"> Key of the entry to remap; </param>
     /// <param name="material"> Material to place in the map; </param>
-    private static void ReplacePersistentMaterial(string key, Material material) {
+    /// <param name="reimportOnGlobal"> Whether the model should be reimported at the end; </param> 
+    private static void ReplacePersistentMaterial(string key, Material material, bool reimport = true) {
         using (SerializedObject serializedObject = new SerializedObject(Options.model)) {
             SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
             int size = extObjects.arraySize;
@@ -56,8 +82,10 @@ public static class ModelAssetLibraryAssetPreprocessor {
                     break;
                 }
             } serializedObject.ApplyModifiedProperties();
-        } Options.model.SaveAndReimport();
-        Reader.CleanObjectPreview();
+        } if (reimport) {
+            Options.model.SaveAndReimport();
+            Reader.CleanObjectPreview();
+        }
     }
 
     /// <summary>
@@ -69,14 +97,15 @@ public static class ModelAssetLibraryAssetPreprocessor {
         MaterialOverrideMap = new Dictionary<string, MaterialData>();
         foreach (KeyValuePair<string, Material> kvp in originalInternalMap) {
             MaterialOverrideMap[kvp.Key] = new MaterialData() { materialRef = kvp.Value, name = kvp.Key };
-        } TempMaterialMap = new Dictionary<string, Material>();
+        } MaterialOverrideMap[SingleKey] = new MaterialData() { name = SingleKey };
+        TempMaterialMap = new Dictionary<string, Material>();
     }
 
     /// <summary>
     /// Checks whether the given paramaters to generate 
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="data"> Data to manipulate; </param>
+    /// <returns> True if the material is valid; </returns>
     public static bool ValidateTemporaryMaterial(string key) {
         MaterialData data = MaterialOverrideMap[key];
         if (Options.useSingleShader && Options.shader == null) return false;
@@ -87,35 +116,68 @@ public static class ModelAssetLibraryAssetPreprocessor {
 
     public static void GenerateTemporaryMaterial(string key) {
         MaterialData data = MaterialOverrideMap[key];
-        Material newMaterial = new Material(Options.useSingleShader ? Options.shader : data.shader);
-        newMaterial.hideFlags = HideFlags.DontSave;
+        Material newMaterial;
+        if (Options.materialOverrideMode == MaterialOverrideMode.Single) {
+            newMaterial = new Material(data.shader);
+        } else newMaterial = new Material(Options.useSingleShader ? Options.shader : data.shader);
+        newMaterial.name = data.name;
         newMaterial.mainTexture = data.albedoMap;
         if (data.normalMap != null) {
             newMaterial.EnableKeyword("_NORMALMAP");
             newMaterial.SetTexture("_BumpMap", data.normalMap);
-        } if (TempMaterialMap.ContainsKey(key)) Object.DestroyImmediate(TempMaterialMap[key]);
+        } if (TempMaterialMap.ContainsKey(key)) RemoveNewMaterial(key);
+        TempManager.CreateTemporaryMaterialAsset(newMaterial);
         TempMaterialMap[key] = newMaterial;
-        ReplacePersistentMaterial(key, newMaterial);
+        if (string.IsNullOrEmpty(key)) ReplaceGlobalMapping(newMaterial);
+        else ReplacePersistentMaterial(key, newMaterial);
     }
 
     public static bool ValidateMaterialEquality(string key) {
         MaterialData data = MaterialOverrideMap[key];
         Material material = TempMaterialMap[key];
         if (material.mainTexture != data.albedoMap) return false;
-        if ( (material.IsKeywordEnabled("_NORMALMAP") && material.GetTexture("_BumpMap") != data.normalMap)
-            || (!material.IsKeywordEnabled("_NORMALMAP") && data.normalMap != null) ) return false;
+        if ((material.IsKeywordEnabled("_NORMALMAP") && material.GetTexture("_BumpMap") != data.normalMap)
+            || (!material.IsKeywordEnabled("_NORMALMAP") && data.normalMap != null)) return false;
         if (!Options.useSingleShader
             && material.shader != data.shader) return false;
         return true;
     }
 
+    /// <summary>
+    /// Switches between the New Material and Reference Material modes;
+    /// <br></br> If a material replacement has not been defined, it restores the original mapping;
+    /// </summary>
+    /// <param name="key"></param>
     public static void ToggleMaterialMap(string key) {
         MaterialData data = MaterialOverrideMap[key];
-        if (data.isNew && data.materialRef != null) {
-            if (TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, data.materialRef);
-        } else if (!data.isNew && TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, TempMaterialMap[key]);
-        else ReplacePersistentMaterial(key, originalInternalMap[key]);
-        data.isNew = !data.isNew;
+        if (originalInternalMap.ContainsKey(key)) {
+            if (data.isNew && data.materialRef != null) {
+                if (TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, data.materialRef);
+            } else if (!data.isNew && TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, TempMaterialMap[key]);
+            else ReplacePersistentMaterial(key, originalInternalMap[key]);
+        } else {
+            if (data.isNew && data.materialRef != null) {
+                if (TempMaterialMap.ContainsKey(key)) ReplaceGlobalMapping(data.materialRef);
+            } else if (!data.isNew && TempMaterialMap.ContainsKey(key)) ReplaceGlobalMapping(TempMaterialMap[key]);
+            else ReplaceGlobalMapping();
+        } data.isNew = !data.isNew;
+    }
+
+    public static void ReplaceGlobalMapping(Material newMaterial = null) {
+        foreach (KeyValuePair<string, Material> kvp in originalInternalMap) {
+            if (newMaterial == null) ReplacePersistentMaterial(kvp.Key, kvp.Value);
+            else ReplacePersistentMaterial(kvp.Key, newMaterial, false);
+        } Options.model.SaveAndReimport();
+        Reader.CleanObjectPreview();
+    }
+
+    public static void RemoveNewMaterial(string key, bool restore = false) {
+        TempManager.CleanMaterial(TempMaterialMap[key]);
+        TempMaterialMap.Remove(key);
+        if (restore) {
+            if (originalInternalMap.ContainsKey(key)) ReplacePersistentMaterial(key, originalInternalMap[key]);
+            else ReplaceGlobalMapping();
+        }
     }
 
     public static void PublishExtData() {
@@ -127,12 +189,14 @@ public static class ModelAssetLibraryAssetPreprocessor {
     }
 
     public static void FlushImportData() {
-        MaterialOverrideMap = null;
         if (TempMaterialMap != null) {
             foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
                 if (kvp.Value != null) Object.DestroyImmediate(kvp.Value);
-            } TempMaterialMap = null;
-        } Options = null;
+            } TempManager.CleanAllMaterials();
+            TempMaterialMap = null;
+        } ReplaceGlobalMapping();
+        Options = null; 
+        MaterialOverrideMap = null;
         originalInternalMap = null;
     }
 

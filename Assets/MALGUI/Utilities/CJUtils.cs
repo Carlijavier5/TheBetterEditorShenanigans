@@ -14,7 +14,7 @@ namespace CJUtils {
 
         public static Color Blue {
             get {
-                return new Vector4(0.745f, 0.8275f, 0.86f, 1);
+                return new Vector4(0.861f, 0.925f, 0.994f, 1);
             }
         }
 
