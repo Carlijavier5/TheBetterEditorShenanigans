@@ -156,14 +156,17 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private void DrawNewMaterials() {
-        int amount = 0;
-        foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
-            if (string.IsNullOrWhiteSpace(kvp.Key) || !MaterialOverrideMap[kvp.Key].isNew) continue;
-            using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
-                GUILayout.Label(kvp.Key, UIStyles.CenteredLabelBold);
-                EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false);
-            } amount++;
-        } if (amount == 0) {
+        //int amount = 0;
+        if (PreservedMaterialMap.Count > 0) {
+            foreach (KeyValuePair<string, Material> kvp in PreservedMaterialMap) {
+                //if (string.IsNullOrWhiteSpace(kvp.Key) || !MaterialOverrideMap[kvp.Key].isNew) continue;
+                using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                    GUILayout.Label(kvp.Key, UIStyles.CenteredLabelBold);
+                    EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false);
+                }
+                //amount++;
+            }
+        } else {//if (amount == 0) {
             GUILayout.Label("- Empty -", UIStyles.CenteredLabelBold);
             EditorGUILayout.Separator();
         }

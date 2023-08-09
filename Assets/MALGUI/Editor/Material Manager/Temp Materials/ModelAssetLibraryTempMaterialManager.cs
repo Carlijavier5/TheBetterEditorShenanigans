@@ -5,8 +5,10 @@ using UnityEditor;
 
 public static class ModelAssetLibraryTempMaterialManager {
 
+    /// <summary> A variable to store the path so it doesn't have to be 'found' as often; </summary>
     private static string tempPath;
-    public static string TempMaterialPath { 
+    /// <summary> String path where new temporary files will be created; </summary>
+    public static string TempMaterialPath {
         get {
             if (tempPath == null) {
                 string[] guids = AssetDatabase.FindAssets($"t:Script {nameof(ModelAssetLibraryTempMaterialManager)}");
@@ -18,6 +20,10 @@ public static class ModelAssetLibraryTempMaterialManager {
     /// <summary> Maps the GUID of a created material to its asset path; </summary>
     private static Dictionary<Material, string> tempMaterialDict;
 
+    /// <summary>
+    /// Creates a temporary (persistent for a while) asset from a given material object;
+    /// </summary>
+    /// <param name="material"> Material object to create an asset for; </param>
     public static void CreateTemporaryMaterialAsset(Material material) {
         if (tempMaterialDict == null) tempMaterialDict = new Dictionary<Material, string>();
         string path = TempMaterialPath + "/" + material.name + ".mat";
@@ -25,6 +31,11 @@ public static class ModelAssetLibraryTempMaterialManager {
         tempMaterialDict[material] = path;
     }
 
+    /// <summary>
+    /// Destroy a material asset from the Manager's dictionary;
+    /// <br></br> Quite safe to use, actually;
+    /// </summary>
+    /// <param name="material"> Material object whose asset must be deleted; </param>
     public static void CleanMaterial(Material material) {
         if (tempMaterialDict.ContainsKey(material) && File.Exists(tempMaterialDict[material])) {
             AssetDatabase.DeleteAsset(tempMaterialDict[material]);
@@ -32,6 +43,10 @@ public static class ModelAssetLibraryTempMaterialManager {
         }
     }
 
+    /// <summary>
+    /// Destroy all material assets with a static reference on this manager;
+    /// <br></br> Nulls the dictionary at the end;
+    /// </summary>
     public static void CleanAllMaterials() {
         if (tempMaterialDict == null) return;
         foreach (KeyValuePair<Material, string> kvp in tempMaterialDict) {

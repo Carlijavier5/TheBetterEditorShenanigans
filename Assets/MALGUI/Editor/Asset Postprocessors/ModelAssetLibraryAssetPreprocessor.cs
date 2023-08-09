@@ -62,6 +62,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
     public static System.Action<Shader> OnShaderResult;
 
     public static void SetMaterialOverrideMode(MaterialOverrideMode mom) {
+        PreservedMaterialMap.Clear();
         switch (mom) {
             case MaterialOverrideMode.Single:
                 if (MaterialOverrideMap[SingleKey].isNew) {
@@ -102,6 +103,16 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// <param name="material"> Material to place in the map; </param>
     /// <param name="reimport"> Whether the model should be reimported within this call; </param> 
     private static void ReplacePersistentMaterial(string key, Material material, bool reimport = true) {
+
+        /// If a new material is incoming to the slot, place a reserve in the slot;
+        /// Else, if the slot was preserving a material but the replacement isn't new, remove the reserve;
+        bool isNewMaterial = TempMaterialMap.ContainsValue(material);
+        bool hadNewMaterial = PreservedMaterialMap.ContainsKey(key);
+        if (isNewMaterial) PreservedMaterialMap[key] = material;
+        else if (hadNewMaterial && !isNewMaterial) PreservedMaterialMap.Remove(key);
+        /// Note that any key can reserve a single material at any given time;
+        /// Multiple reserves are not an issue;
+
         using (SerializedObject serializedObject = new SerializedObject(Options.model)) {
             SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
             int size = extObjects.arraySize;
@@ -130,6 +141,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
             MaterialOverrideMap[kvp.Key] = new MaterialData() { materialRef = kvp.Value, name = kvp.Key };
         } MaterialOverrideMap[SingleKey] = new MaterialData() { name = SingleKey };
         TempMaterialMap = new Dictionary<string, Material>();
+        PreservedMaterialMap = new Dictionary<string, Material>();
     }
 
     /// <summary>
@@ -203,9 +215,8 @@ public static class ModelAssetLibraryAssetPreprocessor {
     public static void ToggleMaterialMap(string key) {
         MaterialData data = MaterialOverrideMap[key];
         if (originalInternalMap.ContainsKey(key)) {
-            if (data.isNew && data.materialRef != null) {
-                ReplacePersistentMaterial(key, data.materialRef);
-            } else if (!data.isNew && TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, TempMaterialMap[key]);
+            if (data.isNew && data.materialRef != null) ReplacePersistentMaterial(key, data.materialRef);
+            else if (!data.isNew && TempMaterialMap.ContainsKey(key)) ReplacePersistentMaterial(key, TempMaterialMap[key]);
             else ReplacePersistentMaterial(key, originalInternalMap[key]);
         } else {
             if (data.isNew && data.materialRef != null) {
@@ -229,7 +240,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
         if (restore) {
             if (originalInternalMap.ContainsKey(key)) ReplacePersistentMaterial(key, originalInternalMap[key]);
             else ReplaceGlobalMapping();
-        }
+        } PreservedMaterialMap.Remove(key);
     }
 
     public static void PublishExtData() {
@@ -245,10 +256,11 @@ public static class ModelAssetLibraryAssetPreprocessor {
             foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
                 if (kvp.Value != null) Object.DestroyImmediate(kvp.Value, true);
             } TempManager.CleanAllMaterials();
-            TempMaterialMap = null;
         } ReplaceGlobalMapping();
-        Options = null; 
+        Options = null;
         MaterialOverrideMap = null;
+        TempMaterialMap = null;
+        PreservedMaterialMap = null;
         originalInternalMap = null;
     }
 
