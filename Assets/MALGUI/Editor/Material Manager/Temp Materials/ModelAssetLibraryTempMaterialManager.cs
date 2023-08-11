@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
+/// <summary>
+/// Handles the creation and disposal of potential material assets;
+/// </summary>
 public static class ModelAssetLibraryTempMaterialManager {
 
     /// <summary> A variable to store the path so it doesn't have to be 'found' as often; </summary>
@@ -29,6 +32,16 @@ public static class ModelAssetLibraryTempMaterialManager {
         string path = TempMaterialPath + "/" + material.name + ".mat";
         AssetDatabase.CreateAsset(material, path);
         tempMaterialDict[material] = path;
+    }
+
+    /// <summary>
+    /// Publish a material persistenly;
+    /// </summary>
+    /// <param name="material"> Material to release into the wilderness; </param>
+    /// <param name="path"> Folder where the material will be placed; 
+    /// <br></br> If null, the material will be placed in a default folder at the Root Path of the Library; </param>
+    public static void ReleaseMaterial(Material material, string path = null) {
+
     }
 
     /// <summary>

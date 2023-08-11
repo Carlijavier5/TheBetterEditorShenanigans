@@ -29,6 +29,12 @@ namespace CJUtils {
                 return new Vector4(0.99f, 0.825f, 0.825f, 1);
             }
         }
+
+        public static Color DarkRed {
+            get {
+                return new Vector4(1.0f, 0.5f, 0.5f, 1);
+            }
+        }
     }
 
     #if UNITY_EDITOR
@@ -338,6 +344,17 @@ namespace CJUtils {
                 style.margin = new RectOffset(0, 0, -10, 0);
                 style.alignment = TextAnchor.UpperCenter;
                 style.normal.textColor = GUI.skin.label.normal.textColor;
+                return style;
+            }
+        }
+
+        public static GUIStyle ArrangedBoxUnselected {
+            get {
+                GUIStyle style = new GUIStyle(GUI.skin.box) {
+                    normal = { textColor = EditorStyles.label.normal.textColor },
+                    margin = new RectOffset(2, 2, 0, 2),
+                    fixedHeight = 20,
+                }; style.fontSize--;
                 return style;
             }
         }

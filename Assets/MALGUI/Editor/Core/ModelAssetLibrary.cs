@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using ExtManager = ModelAssetLibraryExtManager;
 
 /// <summary> Core class for the Model Asset Library; 
 /// <br></br> Reads and catalogs data from the Asset Database and the target File Structure;
@@ -88,7 +89,7 @@ public static class ModelAssetLibrary {
     /// </summary>
     public static void Refresh() {
         LoadDictionaries();
-        ModelAssetLibraryExtManager.Refresh();
+        ExtManager.Refresh();
         if (!string.IsNullOrWhiteSpace(RootAssetPath)
             && ModelFileExtensions != null 
             && ModelFileExtensions.Length > 0) {
@@ -222,7 +223,7 @@ public static class ModelAssetLibrary {
     private static void RegisterModel(string modelID) {
         if (!ModelDataDict.ContainsKey(modelID)) {
             string modelPath = AssetDatabase.GUIDToAssetPath(modelID);
-            var extData = ModelAssetLibraryExtManager.FetchExtData(modelID);
+            var extData = ExtManager.CreateExtData(modelID);
             ModelDataDict[modelID] = new ModelData(modelPath, new List<string>(), extData);
         }
     }

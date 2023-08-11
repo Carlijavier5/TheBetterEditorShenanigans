@@ -3,12 +3,7 @@ guid: 148336fa3f8365a408a9e0e735df8ffa
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Escaroll
-    second: {instanceID: 0}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 0

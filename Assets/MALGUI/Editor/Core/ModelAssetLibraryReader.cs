@@ -300,28 +300,68 @@ public static class ModelAssetLibraryReader {
     #region | Material Helpers |
 
     /// <summary>
-    /// Replaces a serialized material reference with another and updates the corresponding dictionaries;
-    /// <br></br> Called by the Material Slot Buttons;
+    /// Replaces a serialized material reference with another in the target model importer;
+    /// <br></br> If the passed material is null, deletes the corresponding external map key;
     /// </summary>
-    /// <param name="name"> Name of the material binding to change; </param>
+    /// <param name="key"> Name of the material binding to change; </param>
     /// <param name="newMaterial"> Material to place in the binding; </param>
-    /// <param name="Model"> Call the function for a different Model, for use outside of the Reader; </param>
-    public static void ReplacePersistentMaterial(string name, Material newMaterial) {
+    public static void ReplacePersistentMaterial(string key, Material newMaterial, ModelImporter Model) {
 
         using (SerializedObject serializedObject = new SerializedObject(Model)) {
             SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
-            int size = extObjects.arraySize;
 
-            for (int i = 0; i < size; i++) {
-                SerializedProperty extObject = extObjects.GetArrayElementAtIndex(i);
-                string key = extObject.FindPropertyRelative("first.name").stringValue;
-                if (extObject.FindPropertyRelative("first.name").stringValue == name) {
-                    extObject.FindPropertyRelative("second").objectReferenceValue = newMaterial;
-                    StaticMaterialSlots[key] = newMaterial;
-                    break;
+            if (newMaterial != null) {
+                /// Note: I'm aware the process below could be optimized by accounting for the value assigned in the
+                /// StaticMaterialSlots map; however, to ensure the method accounts for external changes in the
+                /// importer map, it's better to operate on the nominal values rather than the tool's own;
+                SerializedProperty materials = serializedObject.FindProperty("m_Materials");
+                for (int matIndex = 0; matIndex < materials.arraySize; matIndex++) {
+                    SerializedProperty materialID = materials.GetArrayElementAtIndex(matIndex);
+                    string name = materialID.FindPropertyRelative("name").stringValue;
+                    string type = materialID.FindPropertyRelative("type").stringValue;
+
+                    if (name == key) {
+                        string assembly = materialID.FindPropertyRelative("assembly").stringValue;
+                        bool lacksKey = true;
+                        for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
+                            SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
+                            string extName = extObject.FindPropertyRelative("first.name").stringValue;
+                            string extType = extObject.FindPropertyRelative("first.type").stringValue;
+
+                            if (extType == type && extName == name) {
+                                extObject.FindPropertyRelative("second").objectReferenceValue = newMaterial;
+                                lacksKey = false;
+                                break;
+                            }
+                        } if (lacksKey) {
+                            int lastIndex = extObjects.arraySize++;
+                            SerializedProperty newObj = extObjects.GetArrayElementAtIndex(lastIndex);
+                            newObj.FindPropertyRelative("first.name").stringValue = name;
+                            newObj.FindPropertyRelative("first.type").stringValue = type;
+                            newObj.FindPropertyRelative("first.assembly").stringValue = assembly;
+                            newObj.FindPropertyRelative("second").objectReferenceValue = newMaterial;
+                        } 
+                    }
                 }
-            } serializedObject.ApplyModifiedProperties();
-        } Model.SaveAndReimport();
+            } else {
+                for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
+                    SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
+                    string extName = extObject.FindPropertyRelative("first.name").stringValue;
+                    if (extName == key) extObjects.DeleteArrayElementAtIndex(externalObjectIndex);
+                }
+            } serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+    }
+
+    /// <summary>
+    /// Override of the Material Replacement method for simple internal use;
+    /// </summary>
+    /// <param name="key"> Name of the material binding to change; </param>
+    /// <param name="newMaterial"> Material to place in the binding; </param>
+    public static void ReplacePersistentMaterial(string key, Material newMaterial) {
+        ReplacePersistentMaterial(key, newMaterial, Model);
+        StaticMaterialSlots[key] = newMaterial;
+        Model.SaveAndReimport();
         UpdateObjectPreview();
         UpdateMeshAndMaterialProperties();
         UpdateSlotChangedStatus();
@@ -332,19 +372,13 @@ public static class ModelAssetLibraryReader {
     /// </summary>
     public static void ResetSlotChanges() {
         if (Model == null) return;
-        using (SerializedObject serializedObject = new SerializedObject(Model)) {
-            SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
-            int size = extObjects.arraySize;
-
-            for (int i = 0; i < size; i++) {
-                SerializedProperty extObject = extObjects.GetArrayElementAtIndex(i);
-                string key = extObject.FindPropertyRelative("first.name").stringValue;
-                extObject.FindPropertyRelative("second").objectReferenceValue = OriginalMaterialSlots[key];
-            } serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        foreach (KeyValuePair<string, Material> kvp in OriginalMaterialSlots) {
+            ReplacePersistentMaterial(kvp.Key, kvp.Value, Model);
         } StaticMaterialSlots = new Dictionary<string, Material>(OriginalMaterialSlots);
         Model.SaveAndReimport();
-        HasStaticSlotChanges = false;
         UpdateObjectPreview();
+        UpdateMeshAndMaterialProperties();
+        HasStaticSlotChanges = false;
     }
 
     /// <summary>
@@ -533,40 +567,23 @@ public static class ModelAssetLibraryReader {
             SerializedProperty materials = serializedObject.FindProperty("m_Materials");
             SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
 
-            if (extObjects.arraySize < materials.arraySize) {
-                for (int matIndex = 0; matIndex < materials.arraySize; matIndex++) {
-                    SerializedProperty materialID = materials.GetArrayElementAtIndex(matIndex);
-                    string name = materialID.FindPropertyRelative("name").stringValue;
-                    string type = materialID.FindPropertyRelative("type").stringValue;
-                    string assembly = materialID.FindPropertyRelative("assembly").stringValue;
+            for (int matIndex = 0; matIndex < materials.arraySize; matIndex++) {
+                SerializedProperty materialID = materials.GetArrayElementAtIndex(matIndex);
+                string name = materialID.FindPropertyRelative("name").stringValue;
+                string type = materialID.FindPropertyRelative("type").stringValue;
 
-                    bool lacksMaterialKey = true;
+                Object materialRef = null;
+                for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
+                    SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
+                    string extName = extObject.FindPropertyRelative("first.name").stringValue;
+                    string extType = extObject.FindPropertyRelative("first.type").stringValue;
 
-                    for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
-                        SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
-                        string extName = extObject.FindPropertyRelative("first.name").stringValue;
-                        string extType = extObject.FindPropertyRelative("first.type").stringValue;
-
-                        if (extType == type && extName == name) {
-                            lacksMaterialKey = false;
-                            break;
-                        }
+                    if (extType == type && extName == name) {
+                        materialRef = extObject.FindPropertyRelative("second").objectReferenceValue;
+                        break;
                     }
-
-                    if (lacksMaterialKey) {
-                        int lastIndex = extObjects.arraySize++;
-                        SerializedProperty extObj = extObjects.GetArrayElementAtIndex(lastIndex);
-                        extObj.FindPropertyRelative("first.name").stringValue = name;
-                        extObj.FindPropertyRelative("first.type").stringValue = type;
-                        extObj.FindPropertyRelative("first.assembly").stringValue = assembly;
-                        extObj.FindPropertyRelative("second").objectReferenceValue = CustomTextures.highlight;
-                    }
-                }
-            } for (int i = 0; i < extObjects.arraySize; i++) {
-                SerializedProperty extObject = extObjects.GetArrayElementAtIndex(i);
-                string key = extObject.FindPropertyRelative("first.name").stringValue;
-                internalMap[key] = extObject.FindPropertyRelative("second").objectReferenceValue as Material;
-            } serializedObject.ApplyModifiedPropertiesWithoutUndo();
+                } internalMap[name] = materialRef as Material;
+            }
         } return internalMap;
     }
 
