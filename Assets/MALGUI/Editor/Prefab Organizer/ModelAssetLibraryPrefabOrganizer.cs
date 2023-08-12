@@ -34,7 +34,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
             CategoryMap[kvp.Key] = new CategoryData();
             foreach (string modelPath in kvp.Value.files) {
                 CategoryMap[kvp.Key].modelIDs.Add(AssetDatabase.AssetPathToGUID(modelPath));
-            } foreach (string modelID in kvp.Value.files) {
+            } foreach (string modelID in CategoryMap[kvp.Key].modelIDs) {
                 CategoryMap[kvp.Key].prefabIDs.AddRange(ModelAssetLibrary.ModelDataDict[modelID].prefabIDList);
             }
         } 

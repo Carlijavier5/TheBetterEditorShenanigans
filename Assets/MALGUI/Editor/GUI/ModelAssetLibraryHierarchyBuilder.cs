@@ -30,7 +30,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
     public static void InitializeHierarchyData() {
         FolderMap = new Dictionary<string, FolderData>();
         modelList = new List<string>();
-        FolderMap = BuildFolderMap(ModelAssetLibrary.RootAssetPath);
+        FolderMap = BuildFolderMap(ModelAssetLibrary.RootAssetPath, FolderMap);
         modelList.Sort((name1, name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/")));
     }
 
@@ -40,20 +40,21 @@ public static class ModelAssetLibraryHierarchyBuilder {
     /// <br></br> The hierarchy generated applies is used by both the Model Reader and the Prefab Organizer;
     /// </summary>
     /// <param name="path">The path to the root folder where the search should begin;</param>
-    public static Dictionary<string, FolderData> BuildFolderMap(string path) {
-        Dictionary<string, FolderData> newFolderMap = new Dictionary<string, FolderData>();
+    public static Dictionary<string, FolderData> BuildFolderMap(string path, Dictionary<string, FolderData> newFolderMap = null) {
+        if (newFolderMap == null) newFolderMap = new Dictionary<string, FolderData>();
         newFolderMap[path] = new FolderData();
         List<string> subfolders = new List<string>(Directory.GetDirectories(path));
         List<string> files = new List<string>(ModelAssetLibrary.FindAssets(path, ModelAssetLibrary.ModelFileExtensions));
-        for (int i = 0; i < files.Count; i++) files[i] = files[i].Replace("\\", "/");
+        for (int i = 0; i < files.Count; i++) files[i] = files[i].Replace('\\', '/');
         if (subfolders.Count > 0 || files.Count > 0) {
             newFolderMap[path].subfolders = new List<string>(subfolders);
             newFolderMap[path].files = files;
             foreach (string subfolder in subfolders) {
-                BuildFolderMap(subfolder);
+                BuildFolderMap(subfolder, newFolderMap);
             } modelList.AddRange(files);
         } else {
-            newFolderMap[path.RemovePathEnd("\\/")].subfolders.Remove(path);
+            string parentPath = path.RemovePathEnd("\\/");
+            newFolderMap[parentPath].subfolders.Remove(path);
             newFolderMap.Remove(path);
         } return newFolderMap;
     }
