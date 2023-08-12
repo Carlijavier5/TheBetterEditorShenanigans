@@ -26,7 +26,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     /// <returns> Whether the selected asset is a Model; </returns>
     [MenuItem("Assets/Library Reimport", true)]
     private static bool LibraryReimportValidate() {
-        return Selection.assetGUIDs.Length == 1
+        return Selection.assetGUIDs.Length == 1 && ModelAssetLibraryConfigurationCore.Config.rootAssetPath != null
                && AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(Selection.assetGUIDs[0])) is ModelImporter;
     }
 

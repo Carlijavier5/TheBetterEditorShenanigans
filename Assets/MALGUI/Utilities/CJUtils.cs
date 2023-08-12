@@ -298,11 +298,11 @@ namespace CJUtils {
 
         public static GUIStyle HButtonSelected {
             get {
-                GUIStyle style = new GUIStyle(EditorStyles.numberField);
+                GUIStyle style = new GUIStyle(EditorStyles.miniTextField);
                 style.normal.textColor = new Color(0.725f, 0.83f, 0.84f);
                 style.hover.textColor = new Color(0.725f, 0.83f, 0.84f);
-                style.margin = new RectOffset(EditorGUI.indentLevel * 15, 0, 0, 0);
-                style.padding = new RectOffset(7, 0, 0, 0);
+                style.margin = new RectOffset(EditorGUI.indentLevel * 15 + 5, 0, -4, -4);
+                style.padding = new RectOffset(7, 0, 1, 1);
                 style.alignment = TextAnchor.MiddleLeft;
                 return style;
             }
@@ -313,7 +313,30 @@ namespace CJUtils {
                 GUIStyle style = new GUIStyle(EditorStyles.miniButton);
                 style.normal.textColor = new Color(0.9f, 0.9f, 0.9f);
                 style.hover.textColor = Color.white;
-                style.margin = new RectOffset(EditorGUI.indentLevel * 15, 0, 0, 0);
+                style.margin = new RectOffset(EditorGUI.indentLevel * 15 + 5, 0, -3, -3);
+                style.alignment = TextAnchor.MiddleLeft;
+                return style;
+            }
+        }
+
+        public static GUIStyle HFButtonSelected {
+            get {
+                GUIStyle style = new GUIStyle(EditorStyles.numberField);
+                style.normal.textColor = new Color(0.725f, 0.83f, 0.84f);
+                style.hover.textColor = new Color(0.725f, 0.83f, 0.84f);
+                style.margin = new RectOffset(EditorGUI.indentLevel * 15 + 5, 0, 0, 0);
+                style.padding = new RectOffset(7, 0, 0, 0);
+                style.alignment = TextAnchor.MiddleLeft;
+                return style;
+            }
+        }
+
+        public static GUIStyle HFButton {
+            get {
+                GUIStyle style = new GUIStyle(EditorStyles.miniButton);
+                style.normal.textColor = new Color(0.9f, 0.9f, 0.9f);
+                style.hover.textColor = Color.white;
+                style.margin = new RectOffset(EditorGUI.indentLevel * 15 + 5, 0, 0, 0);
                 style.alignment = TextAnchor.MiddleLeft;
                 return style;
             }

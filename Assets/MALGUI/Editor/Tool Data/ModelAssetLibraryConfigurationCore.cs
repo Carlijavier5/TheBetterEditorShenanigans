@@ -26,7 +26,7 @@ public static class ModelAssetLibraryConfigurationCore {
         public string rootAssetPath;
         public string dictionaryDataPath;
         public string modelFileExtensions;
-    } public static Configuration Config;
+    } public static Configuration Config = new Configuration();
 
     /// <summary> Path to the root of the folder hierarchy where the library will search for assets; </summary>
     public static string RootAssetPath { get { return Config.rootAssetPath; } }
@@ -47,9 +47,9 @@ public static class ModelAssetLibraryConfigurationCore {
     /// <summary>
     /// Replace the Root Asset Path statically. The path still needs to be saved;
     /// </summary>
-    /// <param name="newAssetPath"></param>
+    /// <param name="newAssetPath"> Asset path to use as a root for the Model Asset Library; </param>
     public static void UpdateRootAssetPath(string newAssetPath) {
-        Config.rootAssetPath = newAssetPath.Trim('/');
+        Config.rootAssetPath = newAssetPath.Trim('/').Replace("\\", "/");
         ModelAssetLibrary.Refresh();
     }
 

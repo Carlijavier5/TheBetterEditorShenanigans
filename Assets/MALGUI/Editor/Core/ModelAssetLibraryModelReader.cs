@@ -558,12 +558,7 @@ public static class ModelAssetLibraryModelReader {
     /// Checks if the model reference is available;
     /// </summary>
     /// <returns> True if the model reference is null, false otherwise; </returns>
-    public static bool AreReferencesFlushed() {
-        if (Model == null) {
-            EditorUtils.DrawScopeCenteredText("Whoops, Unity threw a tantrum and these references are gone! \nPlease Reload this... um... thing!");
-            return true;
-        } return false;
-    }
+    public static bool ReferencesAreFlushed() => Model == null;
 
     /// <summary>
     /// Reads all 'accesible' mesh and material data from a model;

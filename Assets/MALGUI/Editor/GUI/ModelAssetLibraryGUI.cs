@@ -5,7 +5,8 @@ using UnityEditor;
 using CJUtils;
 using ModelReader = ModelAssetLibraryModelReader;
 using ModelReaderGUI = ModelAssetLibraryModelReaderGUI;
-using DirectoryBuilder = ModelAssetLibraryDirectoryBuilder;
+using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
+using DirectoryBuilder = ModelAssetLibraryHierarchyBuilder;
 
 /// <summary> Main GUI of the Model Asset Library;
 /// <br></br> Connects a number of tools together in a single window;
@@ -41,6 +42,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     } /// <summary> The tool actively displayed within the library; </summary>
     private static ToolMode toolMode;
 
+    private Vector2 directoryScroll;
     private Vector2 toolScroll;
 
     #endregion
@@ -50,6 +52,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
         ModelAssetLibrary.Refresh();
         ModelReader.FlushAssetData();
         DirectoryBuilder.InitializeHierarchyData();
+        PrefabOrganizer.BuildCategoryMap();
     }
 
     void OnDisable() {
@@ -64,8 +67,13 @@ public class ModelAssetLibraryGUI : EditorWindow {
     void OnGUI() {
         using (new EditorGUILayout.HorizontalScope()) {
             using (new EditorGUILayout.VerticalScope(GUILayout.MinWidth(200), GUILayout.MaxWidth(220))) {
-                DirectoryBuilder.DisplayToolDirectory(toolMode);
-                DrawToolSelectionButtons();
+                DirectoryBuilder.DrawSearchBar();
+                using (var leftScope = new EditorGUILayout.ScrollViewScope(directoryScroll,
+                                                                     false, true, GUI.skin.horizontalScrollbar,
+                                                                     GUI.skin.verticalScrollbar, UIStyles.PaddedScrollView)) {
+                    directoryScroll = leftScope.scrollPosition;
+                    DirectoryBuilder.DisplayToolDirectory(toolMode);
+                } DrawToolSelectionButtons();
             } using (new GUILayout.VerticalScope()) {
                 using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
                     DrawToolbarButtons();
@@ -116,10 +124,11 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 ModelReaderGUI.DrawModelReaderToolbar();
                 break;
             case ToolMode.PrefabOrganizer:
+                PrefabOrganizer.DrawPrefabOrganizerToolbar();
                 break;
             case ToolMode.MaterialManager:
                 break;
-        } if (GUILayout.Button(EditorUtils.FetchIcon("_Popup"), EditorStyles.toolbarButton, GUILayout.MinWidth(32), GUILayout.MaxWidth(48))) {
+        } if (GUILayout.Button(EditorUtils.FetchIcon("_Popup"), EditorStyles.toolbarButton, GUILayout.MinWidth(32), GUILayout.MaxWidth(32))) {
             ModelAssetLibraryConfigurationGUI.ShowWindow();
         }
     }

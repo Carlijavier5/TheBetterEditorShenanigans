@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -54,9 +53,9 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <param name="sectionType"> Section selected in the GUI; </param>
     public static void ShowSelectedSection() {
 
-        if (AreReferencesFlushed()) return;
-        if (ActiveSection == 0) {
+        if (ReferencesAreFlushed()) {
             EditorUtils.DrawScopeCenteredText("Selected Asset Data will be displayed here;");
+            return;
         }
 
         switch (ActiveSection) {
