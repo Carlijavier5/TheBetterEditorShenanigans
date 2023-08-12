@@ -35,6 +35,12 @@ namespace CJUtils {
                 return new Vector4(1.0f, 0.5f, 0.5f, 1);
             }
         }
+
+        public static Color TintBlurple {
+            get {
+                return new Vector4(0.75f, 0.75f, 0.85f, 1);
+            }
+        }
     }
 
     #if UNITY_EDITOR

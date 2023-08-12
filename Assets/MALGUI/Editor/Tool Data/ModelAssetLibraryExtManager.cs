@@ -38,7 +38,7 @@ public static class ModelAssetLibraryExtManager {
     /// Generates a blank Ext Data file for the given model;
     /// </summary>
     /// <param name="modelID"></param>
-    /// <returns> The newly created file, or a pre-existent file if one exists; </returns>
+    /// <returns> A new ExtData asset, or a pre-existent data asset if one exists; </returns>
     public static ModelAssetLibraryExtData CreateExtData(string modelID) {
         if (extDataDict.ContainsKey(modelID)) return extDataDict[modelID];
         var newExtData = ScriptableObject.CreateInstance<ModelAssetLibraryExtData>();
@@ -49,11 +49,21 @@ public static class ModelAssetLibraryExtManager {
         return newExtData;
     }
 
+    /// <summary>
+    /// Returns the ExtData associated with a given model ID;
+    /// For use in an edge case where no asset should be created if one doesn't exist;
+    /// </summary>
+    /// <param name="modelID"> ID of the model to check; </param>
+    /// <returns> A pre-existent data asset, if it exists; </returns>
     public static ModelAssetLibraryExtData FetchExtData(string modelID) {
         if (extDataDict.ContainsKey(modelID)) return extDataDict[modelID];
         else return null;
     }
 
+    /// <summary>
+    /// Deletes the ExtData file associated with a given modelID;
+    /// </summary>
+    /// <param name="modelID"> ID of the model whose ExtData should be deleted; </param>
     public static void DeleteExtData(string modelID) {
         if (!extDataDict.ContainsKey(modelID)) return;
         string extDataPath = AssetDatabase.GetAssetPath(extDataDict[modelID]);

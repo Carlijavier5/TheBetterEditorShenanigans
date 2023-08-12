@@ -40,8 +40,23 @@ public static class ModelAssetLibraryTempMaterialManager {
     /// <param name="material"> Material to release into the wilderness; </param>
     /// <param name="path"> Folder where the material will be placed; 
     /// <br></br> If null, the material will be placed in a default folder at the Root Path of the Library; </param>
+    /// <returns> True if the asset was moved successfully, false otherwise; </returns>
     public static void ReleaseMaterial(Material material, string path = null) {
-
+        if (!tempMaterialDict.ContainsKey(material)) return;
+        if (path != null) {
+            string pathValidation = AssetDatabase.ValidateMoveAsset(tempMaterialDict[material], path);
+            if (string.IsNullOrEmpty(pathValidation)) {
+                AssetDatabase.MoveAsset(tempMaterialDict[material], path);
+            } else Debug.LogWarning(pathValidation);
+        } else {
+            /*
+            string rootLocation = ModelAssetLibrary.RootAssetPath + "/Materials/" + tempMaterialDict[material].IsolatePathEnd("\\/");
+            string pathValidation = AssetDatabase.ValidateMoveAsset(tempMaterialDict[material], rootLocation);
+            if (string.IsNullOrEmpty(pathValidation)) {
+                AssetDatabase.MoveAsset(tempMaterialDict[material], rootLocation);
+            } else Debug.LogWarning(pathValidation);
+            */
+        } tempMaterialDict.Remove(material);
     }
 
     /// <summary>

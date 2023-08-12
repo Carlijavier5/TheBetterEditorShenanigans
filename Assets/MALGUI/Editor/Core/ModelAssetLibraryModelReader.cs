@@ -6,7 +6,29 @@ using CJUtils;
 
 /// <summary> Component class of the Model Asset Library;
 /// <br></br> Reads asset data and displays the corresponding properties in the GUI; </summary>
-public static class ModelAssetLibraryReader {
+public static class ModelAssetLibraryModelReader {
+
+    #region | General Section Varaibles |
+
+    public enum SectionType {
+        None,
+        Model,
+        Meshes,
+        Materials,
+        Prefabs,
+        Rig,
+        Animations,
+        Skeleton
+    } public static SectionType ActiveSection { get; private set; }
+
+    public enum AssetMode {
+        Model,
+        Animation
+    } public static AssetMode ActiveAssetMode { get; private set; }
+
+    public static string SelectedModel { get; private set; }
+
+    #endregion
 
     #region | General Reference Variables |
 
@@ -180,6 +202,42 @@ public static class ModelAssetLibraryReader {
     #endregion
 
     #region | Global Methods |
+
+    /// <summary>
+    /// Set the currently selected asset;
+    /// </summary>
+    /// <param name="path"> Path to the selected asset; </param>
+    public static void SetSelectedModel(string path) {
+        FlushAssetData();
+        LoadSelectedAsset(path);
+        ActiveSection = SectionType.Model;
+    }
+
+    /// <summary>
+    /// Change the Toolbar to deal with a different type of Model content;
+    /// </summary>
+    /// <param name="newAssetMode"> New model type to atune the toolbar to; </param>
+    public static void SetSelectedAssetMode(AssetMode newAssetMode) {
+        switch (newAssetMode) {
+            case AssetMode.Model:
+                SetSelectedSection(SectionType.Model);
+                break;
+            case AssetMode.Animation:
+                SetSelectedSection(SectionType.Rig);
+                break;
+        } ActiveAssetMode = newAssetMode;
+    }
+
+    /// <summary>
+    /// Sets the GUI's selected Reader Section;
+    /// </summary>
+    /// <param name="sectionType"> Type of the prospective section to show; </param>
+    public static void SetSelectedSection(SectionType sectionType) {
+        if (ActiveSection != sectionType) {
+            ActiveSection = sectionType;
+            ModelAssetLibraryModelReaderGUI.RefreshSections();
+        }
+    }
 
     /// <summary>
     /// Discard any read information;
@@ -646,7 +704,7 @@ public static class ModelAssetLibraryReader {
         if (name == null) name = Model.assetPath.IsolatePathEnd("\\/").RemovePathEnd(".");
         string annexedName = name + (annex > 0 ? "_" + annex : "");
         if (ModelAssetLibrary.NoAssetAtPath(basePath + "/" + annexedName + ".prefab")) {
-            ModelAssetLibraryReader.name = annexedName;
+            ModelAssetLibraryModelReader.name = annexedName;
         } else if (annex < 100) { /// Cheap stack overflow error prevention;
             annex++;
             UpdateDefaultPrefabName(basePath, name, annex);

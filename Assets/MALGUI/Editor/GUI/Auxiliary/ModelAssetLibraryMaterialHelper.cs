@@ -15,9 +15,9 @@ public class ModelAssetLibraryMaterialHelper : EditorWindow {
         return window;
     }
 
-    private static Dictionary<string, Material> StaticDict { get { return ModelAssetLibraryReader.StaticMaterialSlots; } }
+    private static Dictionary<string, Material> StaticDict { get { return ModelAssetLibraryModelReader.StaticMaterialSlots; } }
 
-    private static Dictionary<string, Material> PersistentDict { get { return ModelAssetLibraryReader.OriginalMaterialSlots; } }
+    private static Dictionary<string, Material> PersistentDict { get { return ModelAssetLibraryModelReader.OriginalMaterialSlots; } }
 
     private static ModelAssetLibraryMaterialHelper window;
 

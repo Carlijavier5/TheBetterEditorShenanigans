@@ -46,7 +46,7 @@ public class ModelAssetLibraryMaterialInspector : EditorWindow {
 
     private void OnDisable() {
         CleanMaterialInspector();
-        ModelAssetLibraryReader.SetSelectedMaterial(null);
+        ModelAssetLibraryModelReader.SetSelectedMaterial(null);
     }
 
     /// <summary>

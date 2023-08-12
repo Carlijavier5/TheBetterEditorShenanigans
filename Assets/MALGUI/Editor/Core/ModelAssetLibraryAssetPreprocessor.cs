@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using Reader = ModelAssetLibraryReader;
+using Reader = ModelAssetLibraryModelReader;
 using TempManager = ModelAssetLibraryTempMaterialManager;
 using ExtManager = ModelAssetLibraryExtManager;
 using ExtData = ModelAssetLibraryExtData;
@@ -93,11 +93,10 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// Mark the asset as reimported;
     /// </summary>
     public static void SignExtData() {
+        ExtManager.Refresh();
         string guid = AssetDatabase.AssetPathToGUID(Options.model.assetPath);
-        ExtData extData = ExtManager.FetchExtData(guid);
-        if (extData == null) {
-            extData = ExtManager.CreateExtData(guid);
-        } extData.isReimported = true;
+        ExtData extData = ExtManager.CreateExtData(guid);
+        extData.isReimported = true;
     }
 
     public static void RelocateModelAsset() {
@@ -105,18 +104,25 @@ public static class ModelAssetLibraryAssetPreprocessor {
     }
 
     public static void ReimportAsset() {
-
+        RelocateModelAsset();
+        foreach (KeyValuePair<string, Material> kvp in PreservedMaterialMap) {
+            TempMaterialMap.Remove(kvp.Key);
+            TempManager.ReleaseMaterial(kvp.Value);
+        } SignExtData();
+        Options.model.SaveAndReimport();
+        FlushImportData(false);
+        Options = null;
     }
 
     /// <summary>
     /// Flushes all data held by this static class;
     /// </summary>
-    public static void FlushImportData() {
+    public static void FlushImportData(bool restore = true) {
         if (TempMaterialMap != null) {
             foreach (KeyValuePair<string, Material> kvp in TempMaterialMap) {
                 if (kvp.Value != null) Object.DestroyImmediate(kvp.Value, true);
             } TempManager.CleanAllMaterials();
-        } ReplaceGlobalMapping();
+        } if (restore) ReplaceGlobalMapping();
         Options = null;
         MaterialOverrideMap = null;
         TempMaterialMap = null;

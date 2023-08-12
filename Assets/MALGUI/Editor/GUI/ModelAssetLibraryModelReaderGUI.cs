@@ -3,13 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
-using static ModelAssetLibraryGUI;
-using static ModelAssetLibraryReader;
+using static ModelAssetLibraryModelReader;
 
 /// <summary> 
 /// Interface displays of the Model Asset Library Reader; </summary>
 /// </summary>
-public class ModelAssetLibraryReaderGUI {
+public static class ModelAssetLibraryModelReaderGUI {
 
     #region | GUI-Exclusive Variables |
 
@@ -53,11 +52,14 @@ public class ModelAssetLibraryReaderGUI {
     /// Call the appropriate section function based on GUI Selection;
     /// </summary>
     /// <param name="sectionType"> Section selected in the GUI; </param>
-    public static void ShowSelectedSection(SectionType sectionType) {
+    public static void ShowSelectedSection() {
 
         if (AreReferencesFlushed()) return;
+        if (ActiveSection == 0) {
+            EditorUtils.DrawScopeCenteredText("Selected Asset Data will be displayed here;");
+        }
 
-        switch (sectionType) {
+        switch (ActiveSection) {
             case SectionType.Model:
                 ShowModelSection();
                 break;
@@ -95,6 +97,45 @@ public class ModelAssetLibraryReaderGUI {
         prefabLogScroll = Vector2.zero;
         prefabListScroll = Vector2.zero;
         ResetSectionDependencies();
+    }
+
+    #endregion
+
+    #region | Global Toolbar |
+
+    public static void DrawModelReaderToolbar() {
+        GUI.enabled = Model != null;
+        switch (ActiveAssetMode) {
+            case AssetMode.Model:
+                DrawToolbarButton(SectionType.Model, 72, 245);
+                DrawToolbarButton(SectionType.Meshes, 72, 245);
+                DrawToolbarButton(SectionType.Materials, 72, 245);
+                DrawToolbarButton(SectionType.Prefabs, 112, 245);
+                break;
+            case AssetMode.Animation:
+                DrawToolbarButton(SectionType.Rig, 66, 245);
+                DrawToolbarButton(SectionType.Animations, 82, 245);
+                DrawToolbarButton(SectionType.Skeleton, 72, 245);
+                break;
+        } GUILayout.FlexibleSpace();
+        EditorGUILayout.LabelField("Asset Mode:", UIStyles.ToolbarText, GUILayout.Width(110));
+        AssetMode newAssetMode = (AssetMode) EditorGUILayout.EnumPopup(ActiveAssetMode, UIStyles.ToolbarPaddedPopUp, GUILayout.MinWidth(100), GUILayout.MaxWidth(180));
+        if (ActiveAssetMode != newAssetMode) SetSelectedAssetMode(newAssetMode);
+        GUI.enabled = true;
+    }
+
+    /// <summary>
+    /// Draws a toolbar button for a given section;
+    /// </summary>
+    /// <param name="sectionType"></param>
+    /// <param name="minWidth"></param>
+    /// <param name="maxWidth"></param>
+    private static void DrawToolbarButton(SectionType sectionType, float minWidth, float maxWidth) {
+        GUIStyle buttonStyle = sectionType == ActiveSection ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton;
+        if (GUILayout.Button(System.Enum.GetName(typeof(SectionType), sectionType),
+                             buttonStyle, GUILayout.MinWidth(minWidth), GUILayout.MaxWidth(maxWidth))) {
+            SetSelectedSection(sectionType);
+        }
     }
 
     #endregion
@@ -763,6 +804,6 @@ public class ModelAssetLibraryReaderGUI {
     /// A neat message to display on unfinished sections;
     /// </summary>
     private static void WIP() {
-        EditorUtils.DrawScopeCenteredText("This section is not implemented yet.\nYou should yell at Carlos in response to this great offense!");
+        EditorUtils.DrawScopeCenteredText("This section is not fully implemented yet.\nYou should yell at Carlos in response to this great offense!");
     }
 }

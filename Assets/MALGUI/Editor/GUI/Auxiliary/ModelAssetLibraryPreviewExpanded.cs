@@ -24,10 +24,10 @@ public class ModelAssetLibraryPreviewExpanded : EditorWindow {
         if (previewObject == null) {
             EditorUtils.DrawScopeCenteredText("Oh, Great Lady of Assembly Reloads...\nShow us your wisdom! And reload this page...");
             return;
-        } ModelAssetLibraryReader.DrawObjectPreviewEditor(previewObject, position.width, position.height);
+        } ModelAssetLibraryModelReader.DrawObjectPreviewEditor(previewObject, position.width, position.height);
     }
 
     void OnDisable() {
-        ModelAssetLibraryReader.CleanObjectPreview();
+        ModelAssetLibraryModelReader.CleanObjectPreview();
     }
 }

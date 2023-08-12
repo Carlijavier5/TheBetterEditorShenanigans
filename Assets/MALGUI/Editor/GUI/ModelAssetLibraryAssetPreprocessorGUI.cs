@@ -52,7 +52,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     private Vector2 materialSlotScroll;
 
     void OnEnable() {
-        ModelAssetLibraryReader.CleanObjectPreview();
+        ModelAssetLibraryModelReader.CleanObjectPreview();
         if (Options == null) return;
         if (Options.model != null) {
             modelGO = AssetDatabase.LoadAssetAtPath<GameObject>(Options.model.assetPath);
@@ -61,7 +61,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     void OnDisable() {
-        ModelAssetLibraryReader.CleanObjectPreview();
+        ModelAssetLibraryModelReader.CleanObjectPreview();
         if (Options != null) FlushImportData();
     }
 
@@ -138,8 +138,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
             } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                 using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                     GUI.color = UIColors.Blue;
-                    if (GUILayout.Button("Reimport")) ReimportAsset();
-                    GUI.color = UIColors.Red;
+                    if (GUILayout.Button("Reimport")) {
+                        ReimportAsset();
+                        Close();
+                    } GUI.color = UIColors.Red;
                     if (GUILayout.Button("Cancel")) Close();
                     GUI.color = Color.white;
                 }
@@ -158,7 +160,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                            ModelAssetLibraryReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                            ModelAssetLibraryModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
                             if (GUILayout.Button("Expanded Preview")) {
                                 ModelAssetLibraryPreviewExpanded.ShowPreviewWindow(modelGO);
                             }
@@ -170,7 +172,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                                 GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                                ModelAssetLibraryReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                                ModelAssetLibraryModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
                                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { richText = true }; 
                                 buttonStyle.fontSize--;
                                 if (GUILayout.Button("<b>Expand Preview</b>", buttonStyle)) {
