@@ -21,8 +21,11 @@ public static class ModelAssetLibraryHierarchyBuilder {
     /// <summary> Sorted list of all identified models for the search function; </summary>
     private static List<string> modelList;
 
-    /// <summary> Currently selected path in the hierarchy; </summary>
+    /// <summary> Currently selected model path in the hierarchy; </summary>
     private static string SelectedModelPath { get { return ModelReader.Model != null ? ModelReader.Model.assetPath : null; } }
+
+    /// <summary> Currently selected category path in the hierarchy; </summary>
+    private static string SelectedCategoryPath { get { return PrefabOrganizer.SelectedCategory; } }
 
     /// GUI variables;
     private static string searchString;
@@ -67,9 +70,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
         }
     }
 
-    private static void SetSelectedPrefabFolder(string path) {
-
-    }
+    private static void SetSelectedPrefabFolder(string path) => PrefabOrganizer.SetSelectedCategory(path);
 
     private static List<string> GetSearchQuery(string searchString) => modelList.FindAll((str) => str.Contains(searchString));
 
@@ -162,7 +163,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
             if (selected) icon = EditorUtils.FetchIcon("d_ScriptableObject Icon");
             else icon = EditorUtils.FetchIcon("d_ScriptableObject On Icon");
         } modelContent = new GUIContent(fileName, icon);
-        if (GUILayout.Button(modelContent, buttonStyle, GUILayout.Width(width + 15 + 14), GUILayout.Height(20))) SetSelectedModel(path);
+        if (GUILayout.Button(modelContent, buttonStyle, GUILayout.Width(width + 29), GUILayout.Height(20))) SetSelectedModel(path);
     }
 
     /// <summary>
@@ -179,7 +180,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
             } else folderContent = new GUIContent(path.IsolatePathEnd("\\/"),
                                                   EditorUtils.FetchIcon(FolderMap[path].foldout ? "d_FolderOpened Icon" : "d_Folder Icon"));
             if (hasSubfolders) {
-                Rect rect = GUILayoutUtility.GetRect(0, 18, GUILayout.Width(15));
+                Rect rect = GUILayoutUtility.GetRect(0, 18, GUILayout.Width(13));
                 FolderMap[path].foldout = EditorGUI.Foldout(rect, FolderMap[path].foldout, folderContent,
                                                                    new GUIStyle(EditorStyles.foldout) { stretchWidth = false });
             } if (hasFiles) DrawPrefabFolderButton(path, hasSubfolders && FolderMap[path].foldout);
@@ -194,9 +195,9 @@ public static class ModelAssetLibraryHierarchyBuilder {
     }
 
     private static void DrawPrefabFolderButton(string path, bool folderOpened) {
-        GUIStyle buttonStyle = path == SelectedModelPath ? UIStyles.HFButtonSelected : UIStyles.HFButton;
+        GUIStyle buttonStyle = path == SelectedCategoryPath ? UIStyles.HFButtonSelected : UIStyles.HFButton;
         GUIContent folderContent = new GUIContent(path.IsolatePathEnd("\\/"), EditorUtils.FetchIcon(folderOpened ? "d_FolderOpened Icon" : "d_Folder Icon"));
         float width = EditorUtils.MeasureTextWidth(folderContent.text, GUI.skin.font);
-        if (GUILayout.Button(folderContent, buttonStyle, GUILayout.Width(width + 34))) SetSelectedPrefabFolder(path);
+        if (GUILayout.Button(folderContent, buttonStyle, GUILayout.Width(width + 34), GUILayout.Height(20))) SetSelectedPrefabFolder(path);
     }
 }

@@ -54,4 +54,39 @@ public static class ModelAssetLibraryPrefabOrganizer {
         GUILayout.FlexibleSpace();
         EditorGUILayout.TextField("", EditorStyles.toolbarSearchField, GUILayout.MinWidth(140));
     }
+
+    public static void ShowSelectedCategory() {
+
+        if (SelectedCategory == null) {
+            EditorUtils.DrawScopeCenteredText("Prefabs stored in the Selected Category will be displayed here;");
+            return;
+        }
+
+        using (new EditorGUILayout.HorizontalScope()) {
+            switch (SortMode) {
+                case PrefabSortMode.Name:
+                    foreach (string prefabID in CategoryMap[SelectedCategory].prefabIDs) {
+                        DrawPrefabCard(prefabID);
+                    } break;
+                case PrefabSortMode.Model:
+                    foreach (string modelID in CategoryMap[SelectedCategory].modelIDs) {
+                        DrawModelColumn(modelID);
+                    } break;
+            }
+        }
+    }
+
+    private static void DrawPrefabCard(string prefabID) {
+        using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+            using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                /// Draw Preview + Select Button;
+            } using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                /// Draw Prefab Name + Open Model + Add to Brush;
+            }
+        }
+    }
+
+    private static void DrawModelColumn(string modelID) {
+
+    }
 }

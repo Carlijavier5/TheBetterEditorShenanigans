@@ -321,12 +321,13 @@ namespace CJUtils {
 
         public static GUIStyle HFButtonSelected {
             get {
-                GUIStyle style = new GUIStyle(EditorStyles.numberField);
+                GUIStyle style = new GUIStyle(EditorStyles.miniTextField);
                 style.normal.textColor = new Color(0.725f, 0.83f, 0.84f);
                 style.hover.textColor = new Color(0.725f, 0.83f, 0.84f);
                 style.margin = new RectOffset(EditorGUI.indentLevel * 15 + 5, 0, 0, 0);
                 style.padding = new RectOffset(7, 0, 0, 0);
                 style.alignment = TextAnchor.MiddleLeft;
+                style.fixedHeight = 18;
                 return style;
             }
         }

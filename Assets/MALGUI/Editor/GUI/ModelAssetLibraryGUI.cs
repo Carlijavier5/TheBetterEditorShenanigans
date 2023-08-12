@@ -142,6 +142,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 ModelReaderGUI.ShowSelectedSection();
                 break;
             case ToolMode.PrefabOrganizer:
+                PrefabOrganizer.ShowSelectedCategory();
                 break;
             case ToolMode.MaterialManager:
                 break;
