@@ -62,15 +62,9 @@ public static class ModelAssetLibraryHierarchyBuilder {
         } return newFolderMap;
     }
 
-    private static void SetSelectedModel(string path) {
-        if (SelectedModelPath != path) {
-            ModelReader.FlushAssetData();
-            ModelReader.SetSelectedModel(path);
-            ModelReader.LoadSelectedAsset(path);
-        }
-    }
+    private static void SetSelectedModel(string path) { if (SelectedModelPath != path) ModelReader.SetSelectedModel(path); }
 
-    private static void SetSelectedPrefabFolder(string path) => PrefabOrganizer.SetSelectedCategory(path);
+    private static void SetSelectedPrefabFolder(string path) { if (SelectedCategoryPath != path) PrefabOrganizer.SetSelectedCategory(path); }
 
     private static List<string> GetSearchQuery(string searchString) => modelList.FindAll((str) => str.Contains(searchString));
 

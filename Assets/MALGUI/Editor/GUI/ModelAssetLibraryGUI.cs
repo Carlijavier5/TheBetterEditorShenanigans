@@ -151,5 +151,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
 
     private void FlushGlobalToolData() {
         ModelReader.FlushAssetData();
+        PrefabOrganizer.FlushCategoryData();
+        toolMode = 0;
     }
 }

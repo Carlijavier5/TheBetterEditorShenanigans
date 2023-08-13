@@ -36,9 +36,9 @@ namespace CJUtils {
             }
         }
 
-        public static Color TintBlurple {
+        public static Color DarkBlue {
             get {
-                return new Vector4(0.75f, 0.75f, 0.85f, 1);
+                return new Vector4(0.25f, 0.95f, 1.0f, 1);
             }
         }
     }
