@@ -12,6 +12,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
 
     /// <summary> Subfolder and File Paths + Foldout Scope of a folder in the model hierarchy; </summary>
     public class FolderData {
+        public string name;
         public List<string> subfolders;
         public List<string> files;
         public bool foldout = true;
@@ -33,16 +34,15 @@ public static class ModelAssetLibraryHierarchyBuilder {
     public static void InitializeHierarchyData() {
         FolderMap = new Dictionary<string, FolderData>();
         modelList = new List<string>();
-        FolderMap = BuildFolderMap(ModelAssetLibrary.RootAssetPath, FolderMap);
+        FolderMap = BuildFolderMap(ModelAssetLibrary.RootAssetPath);
         modelList.Sort((name1, name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/")));
     }
 
     /// <summary>
     /// Iterates through the directories in the target path to build a dictionary tree;
     /// <br></br> This method is recursive and will traverse the full depth of the target folder hierarchy;
-    /// <br></br> The hierarchy generated applies is used by both the Model Reader and the Prefab Organizer;
     /// </summary>
-    /// <param name="path">The path to the root folder where the search should begin;</param>
+    /// <param name="path"> The path to the root folder where the search should begin; </param>
     public static Dictionary<string, FolderData> BuildFolderMap(string path, Dictionary<string, FolderData> newFolderMap = null) {
         if (newFolderMap == null) newFolderMap = new Dictionary<string, FolderData>();
         newFolderMap[path] = new FolderData();
@@ -50,6 +50,7 @@ public static class ModelAssetLibraryHierarchyBuilder {
         List<string> files = new List<string>(ModelAssetLibrary.FindAssets(path, ModelAssetLibrary.ModelFileExtensions));
         for (int i = 0; i < files.Count; i++) files[i] = files[i].Replace('\\', '/');
         if (subfolders.Count > 0 || files.Count > 0) {
+            newFolderMap[path].name = path.IsolatePathEnd("\\/");
             newFolderMap[path].subfolders = new List<string>(subfolders);
             newFolderMap[path].files = files;
             foreach (string subfolder in subfolders) {

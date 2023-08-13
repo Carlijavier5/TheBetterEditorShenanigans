@@ -44,11 +44,13 @@ public static class ModelAssetLibrary {
     /// A baby class containing a model path and its associated prefab IDs. Halleluleh ;-;
     /// </summary>
     public class ModelData {
+        public string name;
         public string path;
         public List<string> prefabIDList;
         public ModelAssetLibraryExtData extData;
 
-        public ModelData(string path, List<string> prefabIDList, ModelAssetLibraryExtData extData) {
+        public ModelData(string name, string path, List<string> prefabIDList, ModelAssetLibraryExtData extData) {
+            this.name = name;
             this.path = path;
             this.prefabIDList = prefabIDList;
             this.extData = extData;
@@ -60,10 +62,12 @@ public static class ModelAssetLibrary {
     /// A baby class containing a prefab path and its associated model ID. Superb ;-;
     /// </summary>
     public class PrefabData {
+        public string name;
         public string path;
         public string modelID;
 
-        public PrefabData(string path, string modelID) {
+        public PrefabData(string name, string path, string modelID) {
+            this.name = name;
             this.path = path;
             this.modelID = modelID;
         }
@@ -104,6 +108,15 @@ public static class ModelAssetLibrary {
     public static void LoadDictionaries() {
         ModelDataDict = new Dictionary<string, ModelData>();
         PrefabDataDict = new Dictionary<string, PrefabData>();
+    }
+
+    /// <summary>
+    /// Flushes all the data collected by the library, so it doesn't sit in memory;
+    /// <br></br> Called if the corresponding option is selected in the Configuration GUI;
+    /// </summary>
+    public static void UnloadDictionaries() {
+        ModelDataDict = null;
+        PrefabDataDict = null;
     }
 
     /// <summary>
@@ -157,10 +170,6 @@ public static class ModelAssetLibrary {
         if (NoAssetAtPath(databasePath)) {
             ModelDataDict.Remove(modelID);
             return false;
-        } if (ModelDataDict[modelID].path != databasePath) {
-            var tempArr = ModelDataDict[modelID].prefabIDList.ToArray();
-            foreach (string prefabID in tempArr) RelocatePrefab(prefabID);
-            ModelDataDict[modelID].path = databasePath;
         } return true;
     }
 
@@ -182,8 +191,6 @@ public static class ModelAssetLibrary {
             PrefabDataDict.Remove(prefabID);
             AssetDatabase.Refresh();
             return false;
-        } if (PrefabDataDict[prefabID].path != databasePath) {
-            RelocatePrefab(prefabID);
         } return true;
     }
 
@@ -203,13 +210,14 @@ public static class ModelAssetLibrary {
 
         foreach (string file in files) {
             if ( extensions.Contains(file.IsolatePathEnd(".").ToLower()) ) {
-                matchingFiles.Add(file);
+                string parsedPath = file.Replace('\\', '/');
+                matchingFiles.Add(parsedPath);
                 switch(registryMode) {
                     case RegistryMode.Model:
-                        RegisterModel(AssetDatabase.AssetPathToGUID(file));
+                        RegisterModel(AssetDatabase.AssetPathToGUID(parsedPath));
                         break;
                     case RegistryMode.Prefab:
-                        RegisterPrefabConditionally(file);
+                        RegisterPrefabConditionally(parsedPath);
                         break;
                 }
             }
@@ -222,10 +230,11 @@ public static class ModelAssetLibrary {
     /// <param name="modelID"> ID of the model whose entries must be added or updated; </param>
     private static void RegisterModel(string modelID) {
         if (!ModelDataDict.ContainsKey(modelID)) {
-            string modelPath = AssetDatabase.GUIDToAssetPath(modelID);
+            string modelPath = AssetDatabase.GUIDToAssetPath(modelID).Replace('\\', '/');
+            string name = modelPath.IsolatePathEnd("/").RemovePathEnd(".");
             var extData = ExtManager.CreateExtData(modelID);
-            ModelDataDict[modelID] = new ModelData(modelPath, new List<string>(), extData);
-        }
+            ModelDataDict[modelID] = new ModelData(name, modelPath, new List<string>(), extData);
+        } else ValidateModelEntry(modelID);
     }
 
     /// <summary>
@@ -244,7 +253,8 @@ public static class ModelAssetLibrary {
                 if (!ModelDataDict.ContainsKey(modelID)) RegisterModel(modelID);
                 if (!ModelDataDict[modelID].prefabIDList.Contains(prefabID)) {
                     ModelDataDict[modelID].prefabIDList.Add(prefabID);
-                } PrefabDataDict[prefabID] = new PrefabData(path, modelID);
+                } string name = path.IsolatePathEnd("\\/").RemovePathEnd(".");
+                PrefabDataDict[prefabID] = new PrefabData(name, path, modelID);
             }
         }
     }
@@ -256,8 +266,9 @@ public static class ModelAssetLibrary {
     /// <param name="modelID"> ID Key to register/update; </param>
     public static void RegisterNewPrefab(string modelID, string fileName = null) {
         string prefabPath = CreatePrefabFromModel(AssetDatabase.GUIDToAssetPath(modelID), fileName);
+        string name = prefabPath.IsolatePathEnd("\\/").RemovePathEnd(".");
         string prefabID = AssetDatabase.AssetPathToGUID(prefabPath);
-        PrefabDataDict[prefabID] = new PrefabData(prefabPath, modelID);
+        PrefabDataDict[prefabID] = new PrefabData(name, prefabPath, modelID);
         if (ModelDataDict.ContainsKey(modelID) && !ModelDataDict[modelID].prefabIDList.Contains(prefabID)) {
             ModelDataDict[modelID].prefabIDList.Add(prefabID);
         }
@@ -293,26 +304,36 @@ public static class ModelAssetLibrary {
     }
 
     /// <summary>
+    /// Relocates all the prefabs associated with a model to a neighboring folder;
+    /// </summary>
+    /// <param name="modelID"> Model whose prefabs should be relocated; </param>
+    public static void RelocatePrefabsWithModel(string modelID) {
+        foreach (string prefabID in ModelDataDict[modelID].prefabIDList) {
+            RelocatePrefab(prefabID);
+        }
+    }
+
+    /// <summary>
     /// Relocates a prefab to mirror the file structure of the model folders;
     /// <br></br> Calls for a conditional clean-up of the original folder;
     /// </summary>
     /// <param name="prefabID"> ID of the Prefab to Move; </param>
-    private static void RelocatePrefab(string prefabID) {
+    public static void RelocatePrefab(string prefabID) {
         string modelID = PrefabDataDict[prefabID].modelID;
-        string originalFilePath = AssetDatabase.GUIDToAssetPath(prefabID);
+        string originalFilePath = AssetDatabase.GUIDToAssetPath(prefabID).Replace('\\', '/');
         if (NoAssetAtPath(originalFilePath)) {
             ModelDataDict[modelID].prefabIDList.Remove(prefabID);
             ModelDataDict.Remove(prefabID);
             return;
         }
 
-        string modelPath = AssetDatabase.GUIDToAssetPath(modelID);
+        string modelPath = AssetDatabase.GUIDToAssetPath(modelID).Replace('\\', '/');
         string targetFilePath = modelPath.ToPrefabPathWithGUID(prefabID);
         string targetFolderPath = modelPath.ToPrefabPath();
 
         if (originalFilePath != targetFilePath) {
             if (!AssetDatabase.IsValidFolder(targetFolderPath)) {
-                AssetDatabase.CreateFolder(targetFolderPath.RemovePathEnd("\\/"), targetFolderPath.IsolatePathEnd("\\/"));
+                AssetDatabase.CreateFolder(targetFolderPath.RemovePathEnd("/"), targetFolderPath.IsolatePathEnd("/"));
             }
             AssetDatabase.MoveAsset(originalFilePath, targetFilePath);
             AssetDatabase.Refresh();

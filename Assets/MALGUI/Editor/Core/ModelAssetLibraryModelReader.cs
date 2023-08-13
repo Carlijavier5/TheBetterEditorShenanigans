@@ -496,6 +496,48 @@ public static class ModelAssetLibraryModelReader {
     #region | Prefab Helpers |
 
     /// <summary>
+    /// Load and process the Prefab Variant Data from the Model Asset Library for future display;
+    /// </summary>
+    public static int UpdatePrefabVariantInfo() {
+        PrefabVariantInfo = new List<PrefabVariantData>();
+        List<string> prefabIDs = ModelAssetLibrary.ModelDataDict[ModelID].prefabIDList;
+        foreach (string prefabID in prefabIDs) {
+            string name = ModelAssetLibrary.PrefabDataDict[prefabID].name + ".prefab";
+            PrefabVariantInfo.Add(new PrefabVariantData(prefabID, name));
+        } DetermineDefaultPrefabName(Model.assetPath.ToPrefabPath());
+        return prefabIDs.Count;
+    }
+
+    /// <summary>
+    /// Determine the next default prefab name;
+    /// </summary>
+    /// <param name="basePath"> Path of the prefab asset; </param>
+    /// <param name="name"> Updated inside the recursive stack, no input is required; </param>
+    /// <param name="annex"> Updated inside the recursive stack, no input is required; </param>
+    private static void DetermineDefaultPrefabName(string basePath, string name = null, int annex = 0) {
+        if (name == null) {
+            name = ModelAssetLibrary.ModelDataDict[ModelID].name.Replace(' ', '_');
+            if (char.IsLetter(name[0]) && char.IsLower(name[0])) name = name.Substring(0, 1).ToUpper() + name[1..];
+        } string annexedName = name + (annex > 0 ? "_" + annex : "");
+        if (ModelAssetLibrary.NoAssetAtPath(basePath + "/" + annexedName + ".prefab")) {
+            SetDefaultPrefabName(annexedName);
+        } else if (annex < 100) { /// Cheap stack overflow error prevention;
+            annex++;
+            DetermineDefaultPrefabName(basePath, name, annex);
+        }
+    }
+
+    /// <summary>
+    /// Sets the default prefab name and removes hotcontrol (to update text field);
+    /// </summary>
+    /// <param name="name"> New default name; </param>
+    public static void SetDefaultPrefabName(string name) {
+        ModelAssetLibraryModelReader.name = name;
+        GUIUtility.keyboardControl = 0;
+        GUIUtility.hotControl = 0;
+    }
+
+    /// <summary>
     /// Validate a filename in terms of content, convention, and File I/O availability;
     /// </summary>
     /// <returns> True if the name is valid, false otherwise; </returns>
@@ -672,38 +714,6 @@ public static class ModelAssetLibraryModelReader {
             if (!materialList.Contains(material)) materialList.Add(material);
         }
         return materialList.ToArray();
-    }
-
-    /// <summary>
-    /// Load and process the Prefab Variant Data from the Model Asset Library for future display;
-    /// </summary>
-    public static int UpdatePrefabVariantInfo() {
-        PrefabVariantInfo = new List<PrefabVariantData>();
-        List<string> prefabIDs = ModelAssetLibrary.ModelDataDict[ModelID].prefabIDList;
-        foreach (string prefabID in prefabIDs) {
-            string path = ModelAssetLibrary.PrefabDataDict[prefabID].path;
-            string name = path.IsolatePathEnd("\\/");
-            name = name.RemovePathEnd(".") + ".prefab";
-            PrefabVariantInfo.Add(new PrefabVariantData(prefabID, name));
-        } UpdateDefaultPrefabName(Model.assetPath.ToPrefabPath());
-        return prefabIDs.Count;
-    }
-
-    /// <summary>
-    /// Determine the next default prefab name;
-    /// </summary>
-    /// <param name="basePath"> Path of the prefab asset; </param>
-    /// <param name="name"> Updated inside the recursive stack, no input is required; </param>
-    /// <param name="annex"> Updated inside the recursive stack, no input is required; </param>
-    private static void UpdateDefaultPrefabName(string basePath, string name = null, int annex = 0) {
-        if (name == null) name = Model.assetPath.IsolatePathEnd("\\/").RemovePathEnd(".");
-        string annexedName = name + (annex > 0 ? "_" + annex : "");
-        if (ModelAssetLibrary.NoAssetAtPath(basePath + "/" + annexedName + ".prefab")) {
-            ModelAssetLibraryModelReader.name = annexedName;
-        } else if (annex < 100) { /// Cheap stack overflow error prevention;
-            annex++;
-            UpdateDefaultPrefabName(basePath, name, annex);
-        }
     }
 
     /// <summary>

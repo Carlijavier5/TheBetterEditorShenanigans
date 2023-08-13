@@ -86,7 +86,15 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     GUI.enabled = true;
                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                     GUILayout.Label("Category:", UIStyles.ArrangedLabel, GUILayout.MaxWidth(125));
-                    EditorGUILayout.Popup(0, new string[] { "None", "All" }, GUILayout.MinWidth(215));
+                    Options.category = EditorGUILayout.Popup(Options.category, CategoryNames, GUILayout.MinWidth(215));
+                } using (new EditorGUILayout.HorizontalScope()) {
+                    using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+                        GUILayout.Label("Relocate Prefabs:", UIStyles.ArrangedLabel);
+                        Options.relocatePrefabs = EditorGUILayout.Toggle(Options.relocatePrefabs, GUILayout.Width(16));
+                    } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+                        GUILayout.Label("Relocate Materials:", UIStyles.ArrangedLabel);
+                        Options.relocatePrefabs = EditorGUILayout.Toggle(Options.relocatePrefabs, GUILayout.Width(16));
+                    }
                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                     GUILayout.Label("Material Settings:", UIStyles.ArrangedLabel, GUILayout.MaxWidth(125));
                     GUI.enabled = Options.hasMeshes;

@@ -686,7 +686,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                 } string impendingName = EditorGUILayout.TextField("Variant Name:", name);
                 if (impendingName != name) {
                     if (NameCondition != 0) NameCondition = 0;
-                    name = impendingName;
+                    SetDefaultPrefabName(impendingName);
                 } DrawNameConditionBox();
                 GUILayout.FlexibleSpace();
                 GUIContent folderContent = new GUIContent(" Open Prefabs Folder", EditorUtils.FetchIcon("d_Folder Icon"));

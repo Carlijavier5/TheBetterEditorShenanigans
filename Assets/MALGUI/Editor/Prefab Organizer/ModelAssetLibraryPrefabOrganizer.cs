@@ -7,37 +7,56 @@ using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
 
 public static class ModelAssetLibraryPrefabOrganizer {
 
+    /// <summary> Data relevant to a folder category, namely, name and file contents; </summary>
     public class CategoryData {
+        /// <summary> Parsed name of this category; </summary>
+        public string name;
+        /// <summary> ID list of all prefabs filed under this category;
+        /// <br></br> Note that prefab categories is based on model category; </summary>
         public List<string> prefabIDs;
+        /// <summary> ID list of all models filed under this category; </summary>
         public List<string> modelIDs;
 
-        public CategoryData() {
+        public CategoryData(string name) {
+            this.name = name;
             prefabIDs = new List<string>();
             modelIDs = new List<string>();
         }
-    }
+    } /// <summary> The folder path of the category selected in the GUI; </summary>
     public static string SelectedCategory { get; private set; }
 
+
+
+    /// <summary> Maps a folder path to its category data; </summary>
     public static Dictionary<string, CategoryData> CategoryMap { get; private set; }
 
+    /// <summary> Data used to draw prefab cards; </summary>
     public class PrefabCardData {
+        /// <summary> Root gameObject atop the prefab file hierarchy; </summary>
         public GameObject rootObject;
+        /// <summary> Asset preview of the prefab; </summary>
         public Texture2D preview;
 
         public PrefabCardData(GameObject rootObject, Texture2D preview) {
             this.rootObject = rootObject;
             this.preview = preview;
         }
-    } 
+    } /// <summary> Dictionary mapping path keys to the corresponding Prefab Card Data; </summary>
     private static Dictionary<string, PrefabCardData> PrefabCardMap;
 
+    /// <summary> Selection group that may be passed to the DragAndDrop class; </summary>
     private static List<Object> dragSelectionGroup;
-    private static bool selectionOccured;
+    /// <summary> Whether the mouse hovered over a button in the current frame; </summary>
+    private static bool mouseOverButton;
 
+    /// <summary> Sorting Modes for the Prefab Organizer; </summary>
     public enum PrefabSortMode {
+        /// <summary> The prefabs cards will be drawn in alphabetical order; </summary>
         Name,
+        /// <summary> The prefab cards will be grouped by parent model; </summary>
         Model
-    } public static PrefabSortMode SortMode { get; private set; }
+    } /// <summary> Sorting Mode selected on the Prefab Organizer GUI; </summary>
+    public static PrefabSortMode SortMode { get; private set; }
 
     public static void BuildCategoryMap() {
         Dictionary<string, HierarchyBuilder.FolderData> folderMap;
@@ -45,16 +64,17 @@ public static class ModelAssetLibraryPrefabOrganizer {
         else folderMap = HierarchyBuilder.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
         CategoryMap = new Dictionary<string, CategoryData>();
         foreach (KeyValuePair<string, HierarchyBuilder.FolderData> kvp in folderMap) {
-            CategoryMap[kvp.Key] = new CategoryData();
+            CategoryMap[kvp.Key] = new CategoryData(kvp.Value.name);
             foreach (string modelPath in kvp.Value.files) {
                 CategoryMap[kvp.Key].modelIDs.Add(AssetDatabase.AssetPathToGUID(modelPath));
             } foreach (string modelID in CategoryMap[kvp.Key].modelIDs) {
                 CategoryMap[kvp.Key].prefabIDs.AddRange(ModelAssetLibrary.ModelDataDict[modelID].prefabIDList);
             }
-        } 
+        }
     }
 
     public static void SetSelectedCategory(string path) {
+        dragSelectionGroup = new List<Object>();
         LoadCategoryData(path);
         SelectedCategory = path;
     }
@@ -75,7 +95,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
         if (PrefabCardMap == null) PrefabCardMap = new Dictionary<string, PrefabCardData>();
         foreach (string prefabID in CategoryMap[path].prefabIDs) {
             if (PrefabCardMap.ContainsKey(prefabID)) continue;
-            string assetPath = AssetDatabase.GUIDToAssetPath(prefabID);
+            string assetPath = ModelAssetLibrary.PrefabDataDict[prefabID].path;
             GameObject rootObject = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
             Texture2D preview = AssetPreview.GetAssetPreview(rootObject);
             while (preview == null) {
@@ -88,7 +108,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
 
     public static void SetSortMode(PrefabSortMode sortMode) {
         /// Originally I did a thing or two here, but turns out I don't want to anymore;
-        /// So I'll leave this method here anyways because I don't like public setters <3
+        /// So I'll leave this method here anyways <3
         SortMode = sortMode;
     }
 
@@ -120,10 +140,11 @@ public static class ModelAssetLibraryPrefabOrganizer {
         }
 
         using (new EditorGUILayout.HorizontalScope()) {
-            GUILayout.FlexibleSpace();
+            bool noItems = CategoryMap[SelectedCategory].prefabIDs.Count == 0;
+            if (noItems) GUILayout.FlexibleSpace();
             switch (SortMode) {
                 case PrefabSortMode.Name:
-                    if (CategoryMap[SelectedCategory].prefabIDs.Count == 0) {
+                    if (noItems) {
                         GUILayout.FlexibleSpace();
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             GUILayout.Label("There are no prefabs under this category;");
@@ -133,7 +154,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
                 case PrefabSortMode.Model:
                     foreach (string modelID in CategoryMap[SelectedCategory].modelIDs) DrawModelColumn(modelID);
                     break;
-            } GUILayout.FlexibleSpace();
+            } if (noItems) GUILayout.FlexibleSpace();
         }
     }
 
@@ -165,10 +186,17 @@ public static class ModelAssetLibraryPrefabOrganizer {
                     string name = ModelAssetLibrary.PrefabDataDict[prefabID].path.IsolatePathEnd("\\/").RemovePathEnd(".");
                     GUILayout.Label(name, UIStyles.CenteredLabelBold);
                 } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
-                    GUILayout.Button("Open Asset", GUILayout.MaxHeight(24));
+                    GUILayout.Button("Open Library", GUILayout.MaxHeight(24));
                     using (new EditorGUILayout.HorizontalScope()) {
-                        GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabModel On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24));
-                        GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabVariant On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24));
+                        if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabModel On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24))) {
+                            EditorUtils.OpenProjectWindow();
+                            EditorGUIUtility.PingObject(AssetImporter.GetAtPath(ModelAssetLibrary
+                                                                                .ModelDataDict[ModelAssetLibrary
+                                                                                .PrefabDataDict[prefabID].modelID].path)); ;
+                        } if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabVariant On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24))) {
+                            EditorUtils.OpenProjectWindow();
+                            EditorGUIUtility.PingObject(data.rootObject);
+                        }
                     }
                 } GUILayout.FlexibleSpace();
             }
@@ -180,7 +208,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
             Rect buttonRect = GUILayoutUtility.GetRect(80, 80, GUILayout.ExpandWidth(false));
             if (buttonRect.Contains(Event.current.mousePosition)) {
-                selectionOccured = true;
+                mouseOverButton = true;
                 bool mouseDown = Event.current.type == EventType.MouseDown;
                 bool mouseDrag = Event.current.type == EventType.MouseDrag;
                 bool leftClick = Event.current.button == 0;
@@ -201,12 +229,16 @@ public static class ModelAssetLibraryPrefabOrganizer {
     }
 
     private static void DeselectionCheck() {
-        if (!selectionOccured && Event.current.type == EventType.MouseDown && !Event.current.shift
+        if (!mouseOverButton && Event.current.type == EventType.MouseDown && !Event.current.shift
             && Event.current.button == 0 && dragSelectionGroup.Count > 0) dragSelectionGroup.Clear();
-        selectionOccured = false;
+        mouseOverButton = false;
     }
 
     private static void DrawModelColumn(string modelID) {
+        using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
 
+            }
+        }
     }
 }

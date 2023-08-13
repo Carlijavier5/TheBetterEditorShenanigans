@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using Reader = ModelAssetLibraryModelReader;
+using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
 using TempManager = ModelAssetLibraryTempMaterialManager;
 using ExtManager = ModelAssetLibraryExtManager;
 using ExtData = ModelAssetLibraryExtData;
@@ -18,6 +19,8 @@ public static class ModelAssetLibraryAssetPreprocessor {
     public class ImportOverrideOptions {
         /// <summary> Reference to the model to be reimported; </summary>
         public ModelImporter model;
+        /// <summary> GUID of the model to be reimported; </summary>
+        public string modelID;
         /// <summary> Whether any meshes were found in the imported file; </summary>
         public bool hasMeshes;
         /// <summary> Whether the model should use materials or vertex color; </summary>
@@ -29,9 +32,15 @@ public static class ModelAssetLibraryAssetPreprocessor {
         /// <summary> Global shader used for new materials if instructed; </summary>
         public Shader shader;
         /// <summary> Category folder to relocate the model to, if any; </summary>
-        public string category;
+        public int category;
+        /// <summary> Relocate prefabs associated with the model </summary>
+        public bool relocatePrefabs;
     } /// <summary> Global Reimport values used to allocate the GUI and the final reimport; </summary>
     public static ImportOverrideOptions Options { get; set; }
+
+    /// <summary> Maps a category name to its folder path; </summary>
+    private static Dictionary<string, string> categoryNameMap;
+    public static string[] CategoryNames { get; private set; }
 
     #endregion
 
@@ -83,10 +92,27 @@ public static class ModelAssetLibraryAssetPreprocessor {
     public static void LoadBasicOptions(ModelImporter modelImporter) {
         Options = new ImportOverrideOptions();
         Options.model = modelImporter;
+        Options.modelID = AssetDatabase.AssetPathToGUID(Options.model.assetPath);
         Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(Options.model.assetPath);
         Options.hasMeshes = mesh != null;
         Options.hasVertexColor = Options.hasMeshes ? mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Color) : false;
-        Options.category = "None";
+        Options.category = 0;
+        BuildCategoryNameMap();
+    }
+
+    /// <summary>
+    /// Builds a category name map using the Hierarchy Builder;
+    /// <br></br> The implementation is too limited, so I'd really like to change it in the future;
+    /// </summary>
+    private static void BuildCategoryNameMap() {
+        categoryNameMap = new Dictionary<string, string>();
+        var folderMap = HierarchyBuilder.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
+        foreach (KeyValuePair<string, HierarchyBuilder.FolderData> kvp in folderMap) {
+            if (kvp.Value.files.Count > 0) categoryNameMap[kvp.Value.name] = kvp.Key;
+        } CategoryNames = new string[categoryNameMap.Keys.Count + 1];
+        CategoryNames[0] = "None";
+        categoryNameMap.Keys.CopyTo(CategoryNames, 1);
+        //foreach (string str in CategoryNames) Debug.Log(str);
     }
 
     /// <summary>
@@ -94,13 +120,21 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// </summary>
     public static void SignExtData() {
         ExtManager.Refresh();
-        string guid = AssetDatabase.AssetPathToGUID(Options.model.assetPath);
-        ExtData extData = ExtManager.CreateExtData(guid);
+        ExtData extData = ExtManager.CreateExtData(Options.modelID);
         extData.isReimported = true;
     }
 
     public static void RelocateModelAsset() {
-
+        if (Options.category != 0) {
+            string oldPath = Options.model.assetPath;
+            string newPath = categoryNameMap[CategoryNames[Options.category]] + "/" + oldPath.IsolatePathEnd("\\/");
+            string moveMessage = AssetDatabase.ValidateMoveAsset(oldPath, newPath);
+            if (string.IsNullOrEmpty(moveMessage)) {
+                AssetDatabase.MoveAsset(Options.model.assetPath, newPath);
+                if (Options.relocatePrefabs) ModelAssetLibrary.RelocatePrefabsWithModel(Options.modelID);
+                AssetDatabase.Refresh();
+            } else Debug.LogWarning(moveMessage);
+        }
     }
 
     public static void ReimportAsset() {
@@ -128,6 +162,8 @@ public static class ModelAssetLibraryAssetPreprocessor {
         TempMaterialMap = null;
         PreservedMaterialMap = null;
         originalInternalMap = null;
+        categoryNameMap = null;
+        CategoryNames = null;
     }
 
     #endregion
