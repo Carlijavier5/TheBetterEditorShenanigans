@@ -18,12 +18,7 @@ ModelImporter:
   - first:
       43: 4300000
     second: Rock_3
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: 31
-    second: {fileID: 2100000, guid: 7ab977a21c92388468ee65ad1c0e5a78, type: 2}
+  externalObjects: {}
   materials:
     materialImportMode: 1
     materialName: 2

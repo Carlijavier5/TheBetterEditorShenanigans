@@ -63,6 +63,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     void OnDisable() {
         ModelAssetLibraryModelReader.CleanObjectPreview();
         if (Options != null) FlushImportData();
+
+        tempMaterials = null;
+        shaderKey = null;
+        modelGO = null;
     }
 
     void OnGUI() {
@@ -86,14 +90,14 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     GUI.enabled = true;
                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                     GUILayout.Label("Category:", UIStyles.ArrangedLabel, GUILayout.MaxWidth(125));
-                    Options.category = EditorGUILayout.Popup(Options.category, CategoryNames, GUILayout.MinWidth(215));
+                    Options.folder = EditorGUILayout.Popup(Options.folder, FolderPaths, GUILayout.MinWidth(215));
                 } using (new EditorGUILayout.HorizontalScope()) {
                     using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                         GUILayout.Label("Relocate Prefabs:", UIStyles.ArrangedLabel);
                         Options.relocatePrefabs = EditorGUILayout.Toggle(Options.relocatePrefabs, GUILayout.Width(16));
                     } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                         GUILayout.Label("Relocate Materials:", UIStyles.ArrangedLabel);
-                        Options.relocatePrefabs = EditorGUILayout.Toggle(Options.relocatePrefabs, GUILayout.Width(16));
+                        Options.relocateMaterials = EditorGUILayout.Toggle(Options.relocateMaterials, GUILayout.Width(16));
                     }
                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                     GUILayout.Label("Material Settings:", UIStyles.ArrangedLabel, GUILayout.MaxWidth(125));

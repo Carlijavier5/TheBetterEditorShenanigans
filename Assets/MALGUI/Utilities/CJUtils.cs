@@ -38,6 +38,12 @@ namespace CJUtils {
 
         public static Color DarkBlue {
             get {
+                return new Vector4(0.3f, 0.8f, 1.0f, 1);
+            }
+        }
+
+        public static Color Cyan {
+            get {
                 return new Vector4(0.25f, 0.95f, 1.0f, 1);
             }
         }
@@ -56,6 +62,15 @@ namespace CJUtils {
         public static void OpenProjectWindow() {
             System.Type projectBrowserType = typeof(UnityEditor.Editor).Assembly.GetType("UnityEditor.ProjectBrowser");
             EditorWindow.GetWindow(projectBrowserType);
+        }
+
+        /// <summary>
+        /// Opens/focuses the Project Window and Pings Object;
+        /// </summary>
+        /// <param name="obj"> Object to ping in the Project Window; </param>
+        public static void PingObject(Object obj) {
+            OpenProjectWindow();
+            EditorGUIUtility.PingObject(obj);
         }
 
         /// <summary>
@@ -249,6 +264,16 @@ namespace CJUtils {
         }
 
         #region Views and Bars;
+
+        public static GUIStyle WindowBox {
+            get {
+                GUIStyle style = new GUIStyle(GUI.skin.window) {
+                    padding = new RectOffset(5, 5, 5, 5),
+                    stretchWidth = false,
+                    stretchHeight = false,
+                }; return style;
+            }
+        }
 
         public static GUIStyle ToolbarText {
             get {

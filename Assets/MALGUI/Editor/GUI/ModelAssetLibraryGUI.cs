@@ -6,7 +6,8 @@ using CJUtils;
 using ModelReader = ModelAssetLibraryModelReader;
 using ModelReaderGUI = ModelAssetLibraryModelReaderGUI;
 using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
-using DirectoryBuilder = ModelAssetLibraryHierarchyBuilder;
+using PrefabOrganizerGUI = ModelAssetLibraryPrefabOrganizerGUI;
+using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
 
 /// <summary> Main GUI of the Model Asset Library;
 /// <br></br> Connects a number of tools together in a single window;
@@ -51,7 +52,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
         ModelAssetLibraryConfigurationCore.LoadConfig();
         ModelAssetLibrary.Refresh();
         ModelReader.FlushAssetData();
-        DirectoryBuilder.InitializeHierarchyData();
+        HierarchyBuilder.InitializeHierarchyData();
         PrefabOrganizer.BuildCategoryMap();
     }
 
@@ -67,12 +68,12 @@ public class ModelAssetLibraryGUI : EditorWindow {
     void OnGUI() {
         using (new EditorGUILayout.HorizontalScope()) {
             using (new EditorGUILayout.VerticalScope(GUILayout.MinWidth(200), GUILayout.MaxWidth(220))) {
-                DirectoryBuilder.DrawSearchBar();
+                HierarchyBuilder.DrawSearchBar();
                 using (var leftScope = new EditorGUILayout.ScrollViewScope(directoryScroll,
                                                                      false, true, GUI.skin.horizontalScrollbar,
                                                                      GUI.skin.verticalScrollbar, UIStyles.PaddedScrollView)) {
                     directoryScroll = leftScope.scrollPosition;
-                    DirectoryBuilder.DisplayToolDirectory(toolMode);
+                    HierarchyBuilder.DisplayToolDirectory(toolMode);
                 } DrawToolSelectionButtons();
             } using (new GUILayout.VerticalScope()) {
                 using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
@@ -111,7 +112,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     /// <summary>
     /// Switch to a different tool;
     /// </summary>
-    private void SwitchActiveTool(ToolMode newToolMode) {
+    public static void SwitchActiveTool(ToolMode newToolMode) {
         toolMode = newToolMode;
     }
 
@@ -124,7 +125,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 ModelReaderGUI.DrawModelReaderToolbar();
                 break;
             case ToolMode.PrefabOrganizer:
-                PrefabOrganizer.DrawPrefabOrganizerToolbar();
+                PrefabOrganizerGUI.DrawPrefabOrganizerToolbar();
                 break;
             case ToolMode.MaterialManager:
                 break;
@@ -142,7 +143,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 ModelReaderGUI.ShowSelectedSection();
                 break;
             case ToolMode.PrefabOrganizer:
-                PrefabOrganizer.ShowSelectedCategory();
+                PrefabOrganizerGUI.ShowSelectedCategory();
                 break;
             case ToolMode.MaterialManager:
                 break;
@@ -152,6 +153,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     private void FlushGlobalToolData() {
         ModelReader.FlushAssetData();
         PrefabOrganizer.FlushCategoryData();
+        HierarchyBuilder.FlushHierarchyData();
         //ModelAssetLibrary.UnloadDictionaries();
         toolMode = 0;
     }

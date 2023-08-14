@@ -18,12 +18,7 @@ ModelImporter:
   - first:
       43: 4300000
     second: Rock_4
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: 31
-    second: {instanceID: 0}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 2

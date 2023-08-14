@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
+using MainGUI = ModelAssetLibraryGUI;
+using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
 using static ModelAssetLibraryModelReader;
 
 /// <summary> 
@@ -240,8 +242,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                         EditorUtils.OpenAssetProperties(Model.assetPath);
                     } GUIContent projectContent = new GUIContent(" Show Model In Project", EditorUtils.FetchIcon("d_Folder Icon"));
                     if (GUILayout.Button(projectContent, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(19))) {
-                        EditorUtils.OpenProjectWindow();
-                        EditorGUIUtility.PingObject(Model);
+                        EditorUtils.PingObject(Model);
                     }
                 }
             }
@@ -691,8 +692,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                 GUILayout.FlexibleSpace();
                 GUIContent folderContent = new GUIContent(" Open Prefabs Folder", EditorUtils.FetchIcon("d_Folder Icon"));
                 if (GUILayout.Button(folderContent, EditorStyles.miniButton, GUILayout.MaxHeight(18))) {
-                    EditorUtils.OpenProjectWindow();
-                    EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Object>(Model.assetPath.ToPrefabPath()));
+                    EditorUtils.PingObject(AssetDatabase.LoadAssetAtPath<Object>(Model.assetPath.ToPrefabPath()));
                 }
             }
 
@@ -778,8 +778,8 @@ public static class ModelAssetLibraryModelReaderGUI {
                     GUILayout.Label(prefabData.name, labelStyle, GUILayout.MaxWidth(260));
                     if (GUILayout.Button("Open Prefab", GUILayout.MaxWidth(150), GUILayout.MaxHeight(19))) {
                         EditorUtils.OpenAssetProperties(AssetDatabase.GUIDToAssetPath(prefabData.guid));
-                    } if (GUILayout.Button("Level Editor", GUILayout.MaxWidth(150), GUILayout.MaxHeight(19))) {
-
+                    } if (GUILayout.Button("Open Organizer", GUILayout.MaxWidth(150), GUILayout.MaxHeight(19))) {
+                        SwitchToOrganizer(prefabData.guid);
                     } GUI.color = UIColors.Red;
                     GUIContent deleteButton = new GUIContent(EditorUtils.FetchIcon("TreeEditor.Trash"));
                     if (GUILayout.Button(deleteButton, GUILayout.MaxWidth(75), GUILayout.MaxHeight(19))) {
@@ -795,6 +795,19 @@ public static class ModelAssetLibraryModelReaderGUI {
             GUILayout.Label("No Prefab Variants have been Registered for this Model;", UIStyles.CenteredLabelBold);
             EditorGUILayout.Separator();
         }
+    }
+
+    /// <summary>
+    /// Switch to the Prefab Organizer tool and place a Search String with prefab's name;
+    /// </summary>
+    /// <param name="prefabID"> ID of the prefab used to redirect the GUI; </param>
+    private static void SwitchToOrganizer(string prefabID) {
+        MainGUI.SwitchActiveTool(MainGUI.ToolMode.PrefabOrganizer);
+        string modelID = ModelAssetLibrary.PrefabDataDict[prefabID].modelID;
+        string path = ModelAssetLibrary.ModelDataDict[modelID].path.RemovePathEnd("\\/");
+        string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
+        PrefabOrganizer.SetSelectedCategory(path);
+        PrefabOrganizer.SetSearchString(name);
     }
 
     #endregion

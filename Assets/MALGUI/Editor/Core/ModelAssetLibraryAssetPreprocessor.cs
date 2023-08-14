@@ -32,15 +32,16 @@ public static class ModelAssetLibraryAssetPreprocessor {
         /// <summary> Global shader used for new materials if instructed; </summary>
         public Shader shader;
         /// <summary> Category folder to relocate the model to, if any; </summary>
-        public int category;
-        /// <summary> Relocate prefabs associated with the model </summary>
+        public int folder;
+        /// <summary> Relocate prefabs associated with the model; </summary>
         public bool relocatePrefabs;
+        /// <summary> Relocate materials; </summary>
+        public bool relocateMaterials;
     } /// <summary> Global Reimport values used to allocate the GUI and the final reimport; </summary>
     public static ImportOverrideOptions Options { get; set; }
 
-    /// <summary> Maps a category name to its folder path; </summary>
-    private static Dictionary<string, string> categoryNameMap;
-    public static string[] CategoryNames { get; private set; }
+    /// <summary> An array of paths to pick from for the Model Relocation method; </summary>
+    public static string[] FolderPaths { get; private set; }
 
     #endregion
 
@@ -96,23 +97,22 @@ public static class ModelAssetLibraryAssetPreprocessor {
         Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(Options.model.assetPath);
         Options.hasMeshes = mesh != null;
         Options.hasVertexColor = Options.hasMeshes ? mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Color) : false;
-        Options.category = 0;
-        BuildCategoryNameMap();
+        Options.folder = 0;
+        FetchFolderPaths();
     }
 
     /// <summary>
     /// Builds a category name map using the Hierarchy Builder;
     /// <br></br> The implementation is too limited, so I'd really like to change it in the future;
     /// </summary>
-    private static void BuildCategoryNameMap() {
-        categoryNameMap = new Dictionary<string, string>();
+    private static void FetchFolderPaths() {
         var folderMap = HierarchyBuilder.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
+        FolderPaths = new string[folderMap.Keys.Count + 1];
+        int i = 1;
         foreach (KeyValuePair<string, HierarchyBuilder.FolderData> kvp in folderMap) {
-            if (kvp.Value.files.Count > 0) categoryNameMap[kvp.Value.name] = kvp.Key;
-        } CategoryNames = new string[categoryNameMap.Keys.Count + 1];
-        CategoryNames[0] = "None";
-        categoryNameMap.Keys.CopyTo(CategoryNames, 1);
-        //foreach (string str in CategoryNames) Debug.Log(str);
+            FolderPaths[i] = kvp.Key;
+            i++;
+        } FolderPaths[0] = "None";
     }
 
     /// <summary>
@@ -124,19 +124,24 @@ public static class ModelAssetLibraryAssetPreprocessor {
         extData.isReimported = true;
     }
 
+    /// <summary>
+    /// Moves a model asset and the selected dependencies to a given folder;
+    /// </summary>
     public static void RelocateModelAsset() {
-        if (Options.category != 0) {
+        if (Options.folder != 0) {
             string oldPath = Options.model.assetPath;
-            string newPath = categoryNameMap[CategoryNames[Options.category]] + "/" + oldPath.IsolatePathEnd("\\/");
+            string newPath = FolderPaths[Options.folder] + "/" + oldPath.IsolatePathEnd("\\/");
             string moveMessage = AssetDatabase.ValidateMoveAsset(oldPath, newPath);
             if (string.IsNullOrEmpty(moveMessage)) {
                 AssetDatabase.MoveAsset(Options.model.assetPath, newPath);
-                if (Options.relocatePrefabs) ModelAssetLibrary.RelocatePrefabsWithModel(Options.modelID);
-                AssetDatabase.Refresh();
             } else Debug.LogWarning(moveMessage);
-        }
+        } if (Options.relocatePrefabs) ModelAssetLibrary.RelocatePrefabsWithModel(Options.modelID);
+        AssetDatabase.Refresh();
     }
 
+    /// <summary>
+    /// Apply the Import Overrides designated in the GUI;
+    /// </summary>
     public static void ReimportAsset() {
         RelocateModelAsset();
         foreach (KeyValuePair<string, Material> kvp in PreservedMaterialMap) {
@@ -162,8 +167,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
         TempMaterialMap = null;
         PreservedMaterialMap = null;
         originalInternalMap = null;
-        categoryNameMap = null;
-        CategoryNames = null;
+        FolderPaths = null;
     }
 
     #endregion

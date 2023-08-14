@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
+using ExtData = ModelAssetLibraryExtData;
 
 /// <summary> Component class of the Model Asset Library;
 /// <br></br> Reads asset data and displays the corresponding properties in the GUI; </summary>
@@ -10,6 +11,7 @@ public static class ModelAssetLibraryModelReader {
 
     #region | General Section Varaibles |
 
+    /// <summary> Component Tools separated by General purpose; </summary>
     public enum SectionType {
         None,
         Model,
@@ -19,13 +21,17 @@ public static class ModelAssetLibraryModelReader {
         Rig,
         Animations,
         Skeleton
-    } public static SectionType ActiveSection { get; private set; }
+    } /// <summary> Section currently selected in the GUI; </summary>
+    public static SectionType ActiveSection { get; private set; }
 
+    /// <summary> Potential Model content limitations; </summary>
     public enum AssetMode {
         Model,
         Animation
-    } public static AssetMode ActiveAssetMode { get; private set; }
+    } /// <summary> Asset Mode currently selected in the GUI; </summary>
+    public static AssetMode ActiveAssetMode { get; private set; }
 
+    /// <summary> Model path currently selected in the GUI; </summary>
     public static string SelectedModel { get; private set; }
 
     #endregion
@@ -36,6 +42,8 @@ public static class ModelAssetLibraryModelReader {
     public static ModelImporter Model { get; private set; }
     /// <summary> GUID of the currently selected model; </summary>
     public static string ModelID { get; private set; }
+    /// <summary> Ext Data of the selected mode; </summary>
+    public static ExtData ModelExtData { get { return ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null; } }
     /// <summary> Reference to the prefab, if any, contained in the model; </summary>
     public static GameObject Prefab { get; private set; }
     /// <summary> Reference to the Custom Icons Scriptable Object; </summary>
