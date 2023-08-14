@@ -6,6 +6,9 @@ using MainGUI = ModelAssetLibraryGUI;
 using ModelReader = ModelAssetLibraryModelReader;
 using static ModelAssetLibraryPrefabOrganizer;
 
+/// <summary> 
+/// Displays the interface of the Model Asset Library Reader; </summary>
+/// </summary>
 public static class ModelAssetLibraryPrefabOrganizerGUI {
 
     private static Vector2 modelSortScroll;
@@ -118,7 +121,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
                     GUILayout.Label(name, UIStyles.CenteredLabelBold);
                 } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                     if (GUILayout.Button("Open Library", GUILayout.MaxHeight(24))) {
-                        SwitchToLibrary(prefabID);
+                        SwitchToLibrary(ModelAssetLibrary.PrefabDataDict[prefabID].modelID);
                     } using (new EditorGUILayout.HorizontalScope()) {
                         if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabModel On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24))) {
                             EditorUtils.PingObject(AssetImporter.GetAtPath(ModelAssetLibrary
@@ -187,8 +190,10 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
                             GUILayout.Label(ModelAssetLibrary.ModelDataDict[modelID].name, UIStyles.CenteredLabelBold, GUILayout.Height(14));
                         } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox, GUILayout.Height(24))) {
                             GUI.color = UIColors.Blue;
-                            GUILayout.Button("Reimport", EditorStyles.miniButton);
-                            GUI.color = Color.white;
+                            if (GUILayout.Button("Reimport", EditorStyles.miniButton)) {
+                                ModelImporter model = AssetImporter.GetAtPath(ModelAssetLibrary.ModelDataDict[modelID].path) as ModelImporter;
+                                ModelAssetLibraryAssetPreprocessorGUI.LibraryReimport(model);
+                            } GUI.color = Color.white;
                         }
                     }
                 }
@@ -202,7 +207,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
                         GUILayout.FlexibleSpace();
                         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                             GUILayout.Label("No Prefab Variants", UIStyles.CenteredLabelBold);
-                            GUILayout.Button("Open Library");
+                            if (GUILayout.Button("Open Library")) SwitchToLibrary(modelID);
                         } GUILayout.FlexibleSpace();
                     }
                 } foreach (string prefabID in modelIDList) {
@@ -219,11 +224,11 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// <summary>
     /// Switch to the Prefabs Section of the Model Reader on the corresponding model;
     /// </summary>
-    /// <param name="prefabID"> ID of the prefab whose model will used to redirect the GUI; </param>
-    private static void SwitchToLibrary(string prefabID) {
+    /// <param name="modelID"> ID of the model used to redirect the GUI; </param>
+    private static void SwitchToLibrary(string modelID) {
         MainGUI.SwitchActiveTool(MainGUI.ToolMode.ModelReader);
-        string modelID = ModelAssetLibrary.PrefabDataDict[prefabID].modelID;
         ModelReader.SetSelectedModel(ModelAssetLibrary.ModelDataDict[modelID].path);
         ModelReader.SetSelectedSection(ModelReader.SectionType.Prefabs);
+        GUIUtility.ExitGUI();
     }
 }

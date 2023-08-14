@@ -43,7 +43,7 @@ public static class ModelAssetLibraryModelReader {
     /// <summary> GUID of the currently selected model; </summary>
     public static string ModelID { get; private set; }
     /// <summary> Ext Data of the selected mode; </summary>
-    public static ExtData ModelExtData { get { return ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null; } }
+    public static ExtData ModelExtData { get; private set; }
     /// <summary> Reference to the prefab, if any, contained in the model; </summary>
     public static GameObject Prefab { get; private set; }
     /// <summary> Reference to the Custom Icons Scriptable Object; </summary>
@@ -243,7 +243,7 @@ public static class ModelAssetLibraryModelReader {
     public static void SetSelectedSection(SectionType sectionType) {
         if (ActiveSection != sectionType) {
             ActiveSection = sectionType;
-            ModelAssetLibraryModelReaderGUI.RefreshSections();
+            ResetSectionDependencies();
         }
     }
 
@@ -254,6 +254,7 @@ public static class ModelAssetLibraryModelReader {
     public static void FlushAssetData() {
 
         ModelID = null;
+        ModelExtData = null;
 
         if (CustomTextures == null) {
             CustomTextures = ModelAssetLibraryConfigurationCore.ToolAssets;
@@ -319,7 +320,7 @@ public static class ModelAssetLibraryModelReader {
             } catch (ExitGUIException) {
                 /// We good :)
             }
-        }
+        } ModelAssetLibraryModelReaderGUI.RefreshSections();
     }
 
     /// <summary>
@@ -329,6 +330,7 @@ public static class ModelAssetLibraryModelReader {
     public static void LoadSelectedAsset(string path) {
         Model = AssetImporter.GetAtPath(path) as ModelImporter;
         ModelID = AssetDatabase.AssetPathToGUID(Model.assetPath);
+        ModelExtData = ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null;
         Prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         FileInfo = new FileInfo(path);
         UpdateMeshAndMaterialProperties();
@@ -336,6 +338,23 @@ public static class ModelAssetLibraryModelReader {
         int prefabCount = UpdatePrefabVariantInfo();
         RegisterPrefabLog("Found " + prefabCount + " Prefab Variant(s) in the Asset Library;");
         Undo.undoRedoPerformed += UpdateSlotChangedStatus;
+    }
+
+    #endregion
+
+    #region | Model Helpers |
+
+    /// <summary>
+    /// Updates the Model Notes and disables hot control to properly update the Text Area;
+    /// </summary>
+    /// <param name="notes"> Notes to pass to the ExtData; </param>
+    public static void UpdateAssetNotes(string notes) {
+        using (var so = new SerializedObject(ModelExtData)) {
+            SerializedProperty noteProperty = so.FindProperty("notes");
+            noteProperty.stringValue = notes;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        } GUIUtility.keyboardControl = 0;
+        GUIUtility.hotControl = 0;
     }
 
     #endregion
@@ -602,7 +621,7 @@ public static class ModelAssetLibraryModelReader {
 
     #endregion
 
-    #region | Loading & Cleanup Helpers |
+    #region | Loading Helpers |
 
     /// <summary>
     /// Checks if the model reference is available;
@@ -723,6 +742,10 @@ public static class ModelAssetLibraryModelReader {
         }
         return materialList.ToArray();
     }
+
+    #endregion
+
+    #region | Preview Helpers |
 
     /// <summary>
     /// Create an Object Editor and display its OnPreviewGUI() layout;

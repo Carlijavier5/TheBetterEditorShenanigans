@@ -1,5 +1,3 @@
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -10,7 +8,7 @@ using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
 
 /// <summary> Core class of the Model Asset Library;
 /// <br></br> Reads the folder directory and generates interactable Hierarchy Previews; </summary>
-public static class ModelAssetLibraryHierarchyBuilder {
+public class ModelAssetLibraryHierarchyBuilder {
 
     /// <summary> Subfolder and File Paths + Foldout Scope of a folder in the model hierarchy; </summary>
     public class FolderData {

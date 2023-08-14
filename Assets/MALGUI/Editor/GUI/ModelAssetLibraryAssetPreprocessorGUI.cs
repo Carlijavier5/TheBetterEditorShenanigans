@@ -16,6 +16,14 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     public static void LibraryReimport() {
         string path = AssetDatabase.GUIDToAssetPath(Selection.assetGUIDs[0]);
         ModelImporter model = AssetImporter.GetAtPath(path) as ModelImporter;
+        LibraryReimport(model);
+    }
+
+    /// <summary>
+    /// Library Reimport function;
+    /// </summary>
+    /// <param name="model"> Model to reimport; </param>
+    public static void LibraryReimport(ModelImporter model) {
         if (model != null) LoadBasicOptions(model);
         ShowWindow();
     }
@@ -96,8 +104,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                         GUILayout.Label("Relocate Prefabs:", UIStyles.ArrangedLabel);
                         Options.relocatePrefabs = EditorGUILayout.Toggle(Options.relocatePrefabs, GUILayout.Width(16));
                     } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+                        GUI.enabled = false;
                         GUILayout.Label("Relocate Materials:", UIStyles.ArrangedLabel);
                         Options.relocateMaterials = EditorGUILayout.Toggle(Options.relocateMaterials, GUILayout.Width(16));
+                        GUI.enabled = true;
                     }
                 } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
                     GUILayout.Label("Material Settings:", UIStyles.ArrangedLabel, GUILayout.MaxWidth(125));
@@ -295,7 +305,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                             GUIContent shaderContent = new GUIContent(noShader ? "No Shader Selected" : data.shader.name);
                             DrawShaderPopup(shaderContent, key);
                         }
-                    } if (!validMaterial || !validName) GUI.enabled = false;
+                    } /*if (!validMaterial || !validName)*/ GUI.enabled = false;
                     if (containsTempKey) {
                         bool materialsAreEqual = ValidateMaterialEquality(key);
                         if (materialsAreEqual) GUI.enabled = false;

@@ -7,7 +7,7 @@ using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
 using static ModelAssetLibraryModelReader;
 
 /// <summary> 
-/// Interface displays of the Model Asset Library Reader; </summary>
+/// Displays the interface of the Model Asset Library Reader; </summary>
 /// </summary>
 public static class ModelAssetLibraryModelReaderGUI {
 
@@ -31,9 +31,16 @@ public static class ModelAssetLibraryModelReaderGUI {
     } /// <summary> Selected distribution of Available Meshes and Materials in the GUI; </summary>
     private static MaterialSearchMode materialSearchMode;
 
+    private static bool editNotes;
+
+    /// <summary> Temporary notes stored in the GUI; </summary>
+    private static string notes;
+
     /// <summary>
     /// Behold! My scroller stuff...
     /// </summary>
+
+    private static Vector2 noteScroll;
 
     private static Vector2 meshUpperScroll;
     private static Vector2 meshLowerScroll;
@@ -89,6 +96,8 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// Refresh the scrolling variables and reset all section dependent variables;
     /// </summary>
     public static void RefreshSections() {
+        notes = null;
+        editNotes = false;
         materialSearchMode = 0;
         meshUpperScroll = Vector2.zero;
         meshLowerScroll = Vector2.zero;
@@ -97,13 +106,15 @@ public static class ModelAssetLibraryModelReaderGUI {
         rightMaterialScroll = Vector2.zero;
         prefabLogScroll = Vector2.zero;
         prefabListScroll = Vector2.zero;
-        ResetSectionDependencies();
     }
 
     #endregion
 
     #region | Global Toolbar |
 
+    /// <summary>
+    /// Draws the toolbar for the Model Reader;
+    /// </summary>
     public static void DrawModelReaderToolbar() {
         GUI.enabled = Model != null;
         switch (ActiveAssetMode) {
@@ -128,9 +139,9 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Draws a toolbar button for a given section;
     /// </summary>
-    /// <param name="sectionType"></param>
-    /// <param name="minWidth"></param>
-    /// <param name="maxWidth"></param>
+    /// <param name="sectionType"> Section selected by this button; </param>
+    /// <param name="minWidth"> Minimum width of the button; </param>
+    /// <param name="maxWidth"> Maximum width of the button; </param>
     private static void DrawToolbarButton(SectionType sectionType, float minWidth, float maxWidth) {
         GUIStyle buttonStyle = sectionType == ActiveSection ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton;
         if (GUILayout.Button(System.Enum.GetName(typeof(SectionType), sectionType),
@@ -234,8 +245,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                             Model.importNormals = value;
                         }
                     }
-                }
-                EditorGUILayout.Separator();
+                } EditorGUILayout.Separator();
                 using (new EditorGUILayout.HorizontalScope()) {
                     GUIContent importerContent = new GUIContent(" Open Model Importer", EditorUtils.FetchIcon("Settings"));
                     if (GUILayout.Button(importerContent, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(19))) {
@@ -243,6 +253,78 @@ public static class ModelAssetLibraryModelReaderGUI {
                     } GUIContent projectContent = new GUIContent(" Show Model In Project", EditorUtils.FetchIcon("d_Folder Icon"));
                     if (GUILayout.Button(projectContent, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(19))) {
                         EditorUtils.PingObject(Model);
+                    }
+                } EditorGUILayout.Separator();
+                EditorUtils.DrawSeparatorLines("Ext Model Utilities", true);
+                using (new EditorGUILayout.HorizontalScope()) {
+                    using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(panelWidth * 3f/5f), GUILayout.Height(60))) {
+                        if (notes == null) {
+                            string defaultText = editNotes ? "" : "<i>No notes were found;</i>";
+                            notes = ModelExtData.notes != null ? string.IsNullOrWhiteSpace(ModelExtData.notes) 
+                                                               ? defaultText : ModelExtData.notes : defaultText;
+                        } using (new EditorGUILayout.HorizontalScope()) {
+                            using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.ExpandHeight(false))) {
+                                GUILayout.FlexibleSpace();
+                                using (new EditorGUILayout.HorizontalScope()) {
+                                    GUILayout.FlexibleSpace();
+                                    GUILayout.Label("Notes:");
+                                    GUILayout.FlexibleSpace();
+                                } GUILayout.FlexibleSpace();
+                            } GUIStyle noteStyle = editNotes
+                                ? new GUIStyle(GUI.skin.label) { wordWrap = true, richText = true }
+                                : new GUIStyle(EditorStyles.boldLabel) { wordWrap = true , richText = true };
+                            using (new EditorGUILayout.VerticalScope(editNotes ? new GUIStyle(EditorStyles.textArea) { margin = new RectOffset(0, 0, 0, 2) }
+                                                                               : UIStyles.WindowBox)) {
+                                using (var noteView = new EditorGUILayout.ScrollViewScope(noteScroll, false, false, GUIStyle.none,
+                                       GUI.skin.verticalScrollbar, GUI.skin.scrollView, GUILayout.Height(60))) {
+                                    noteScroll = noteView.scrollPosition;
+                                    using (new EditorGUILayout.VerticalScope()) {
+                                        using (new EditorGUILayout.HorizontalScope()) {
+                                            if (!editNotes) {
+                                                GUILayout.Label(notes, noteStyle, GUILayout.MinWidth(185));
+                                            } else notes = GUILayout.TextArea(notes, noteStyle, GUILayout.MinWidth(185));
+                                            EditorGUILayout.Space(15);
+                                        }
+                                    }     
+                                }
+                            }
+                        } using (new EditorGUILayout.HorizontalScope()) {
+                            if (editNotes) {
+                                GUI.color = UIColors.Green;
+                                if (GUILayout.Button("Save", EditorStyles.miniButton)) {
+                                    UpdateAssetNotes(notes);
+                                    noteScroll = Vector2.zero;
+                                    notes = null;
+                                    editNotes = false;
+                                } GUI.color = UIColors.Red;
+                                if (GUILayout.Button("Cancel", EditorStyles.miniButton)) {
+                                    UpdateAssetNotes(ModelExtData.notes);
+                                    noteScroll = Vector2.zero;
+                                    notes = null;
+                                    editNotes = false;
+                                } GUI.color = Color.white;
+                            } else if (GUILayout.Button("Edit Notes")) {
+                                notes = ModelExtData.notes;
+                                editNotes = true;
+                            }
+                        }
+                    } using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                            GUIStyle labelStyle = new GUIStyle(UIStyles.CenteredLabelBold);
+                            labelStyle.fontSize -= 1;
+                            GUILayout.Label("Ext Data Status", labelStyle);
+                        } using (new EditorGUILayout.HorizontalScope()) {
+                            EditorUtils.DrawCustomHelpBox("Version Up-To-Date", EditorUtils.FetchIcon("Valid"), 0, 18);
+                        } using (new EditorGUILayout.HorizontalScope()) {
+                            EditorUtils.DrawCustomHelpBox("Reimported In Library", EditorUtils.FetchIcon("Valid"), 0, 18);
+                        } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox, GUILayout.Height(18))) {
+                            GUI.color = UIColors.Blue;
+                            if (GUILayout.Button("<b>Reimport</b>", new GUIStyle(GUI.skin.button) { 
+                                                                       fontSize = 11, richText = true }, GUILayout.Height(19))) {
+                                ModelAssetLibraryAssetPreprocessorGUI.LibraryReimport(Model);
+                            } GUI.color = Color.white;
+                        }
+
                     }
                 }
             }
@@ -690,7 +772,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                     SetDefaultPrefabName(impendingName);
                 } DrawNameConditionBox();
                 GUILayout.FlexibleSpace();
-                GUIContent folderContent = new GUIContent(" Open Prefabs Folder", EditorUtils.FetchIcon("d_Folder Icon"));
+                GUIContent folderContent = new GUIContent(" Show Prefabs Folder", EditorUtils.FetchIcon("d_Folder Icon"));
                 if (GUILayout.Button(folderContent, EditorStyles.miniButton, GUILayout.MaxHeight(18))) {
                     EditorUtils.PingObject(AssetDatabase.LoadAssetAtPath<Object>(Model.assetPath.ToPrefabPath()));
                 }
@@ -808,6 +890,7 @@ public static class ModelAssetLibraryModelReaderGUI {
         string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
         PrefabOrganizer.SetSelectedCategory(path);
         PrefabOrganizer.SetSearchString(name);
+        GUIUtility.ExitGUI();
     }
 
     #endregion

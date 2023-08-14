@@ -1,5 +1,3 @@
-using System.IO;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
@@ -113,6 +111,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
     /// Switch to a different tool;
     /// </summary>
     public static void SwitchActiveTool(ToolMode newToolMode) {
+        FlushActiveToolData();
         toolMode = newToolMode;
     }
 
@@ -150,6 +149,25 @@ public class ModelAssetLibraryGUI : EditorWindow {
         }
     }
 
+    /// <summary>
+    /// Unloads the data contained in the active tool;
+    /// </summary>
+    private static void FlushActiveToolData() {
+        switch (toolMode) {
+            case ToolMode.ModelReader:
+                ModelReader.FlushAssetData();
+                break;
+            case ToolMode.PrefabOrganizer:
+                PrefabOrganizer.FlushCategoryData();
+                break;
+            case ToolMode.MaterialManager:
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Unloads all data contained in the tool components;
+    /// </summary>
     private void FlushGlobalToolData() {
         ModelReader.FlushAssetData();
         PrefabOrganizer.FlushCategoryData();

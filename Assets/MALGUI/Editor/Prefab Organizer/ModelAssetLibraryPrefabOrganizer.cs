@@ -1,8 +1,6 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using CJUtils;
 using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
 
 /// <summary> Component class of the Model Asset Library;
@@ -105,7 +103,8 @@ public static class ModelAssetLibraryPrefabOrganizer {
                     Object.DestroyImmediate(data.preview);
                 }
             } PrefabCardMap = null;
-        } SelectedCategory = null;
+        } CategoryMap = null;
+        SelectedCategory = null;
         DragSelectionGroup = null;
         SortMode = 0;
 
@@ -119,6 +118,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
     /// </summary>
     /// <param name="path"> Category path to load; </param>
     public static void LoadCategoryData(string path) {
+        if (CategoryMap == null) BuildCategoryMap();
         if (PrefabCardMap == null) PrefabCardMap = new Dictionary<string, PrefabCardData>();
         prefabNameMapList = new List<KeyValuePair<string, string>>();
         foreach (string prefabID in CategoryMap[path].prefabIDs) {

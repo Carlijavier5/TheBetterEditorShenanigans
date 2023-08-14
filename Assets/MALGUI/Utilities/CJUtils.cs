@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 # if UNITY_EDITOR
 using UnityEditor;
@@ -237,7 +235,8 @@ namespace CJUtils {
         /// <param name="width"> Help Box width; </param>
         public static void DrawCustomHelpBox(string text, Texture texture, float width, float height) {
             GUIContent messageContent = new GUIContent(text, texture);
-            GUILayout.Label(messageContent, UIStyles.HelpBoxLabel, GUILayout.Width(width), GUILayout.Height(height));
+            GUILayout.Label(messageContent, UIStyles.HelpBoxLabel, GUILayout.Width(width), GUILayout.Height(height),
+                            GUILayout.ExpandWidth(width == 0), GUILayout.ExpandHeight(height == 0));
         }
 
         /// <summary>
