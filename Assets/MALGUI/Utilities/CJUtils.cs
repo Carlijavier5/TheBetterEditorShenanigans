@@ -55,6 +55,16 @@ namespace CJUtils {
     public static class EditorUtils {
 
         /// <summary>
+        /// Draws a centered Label wrapped around a WindowBox scope;
+        /// </summary>
+        /// <param name="text"> Text to display on the label; </param>
+        public static void DrawWindowBoxLabel(string text, params GUILayoutOption[] options) {
+            using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                GUILayout.Label(text, UIStyles.CenteredLabelBold, options);
+            }
+        }
+
+        /// <summary>
         /// Opens and/or focuses the Project Window;
         /// </summary>
         public static void OpenProjectWindow() {

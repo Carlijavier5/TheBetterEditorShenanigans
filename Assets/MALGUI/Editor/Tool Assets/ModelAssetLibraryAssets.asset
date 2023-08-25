@@ -17,3 +17,7 @@ MonoBehaviour:
   meshPreviewBackground: {fileID: 2800000, guid: 98bc09f68eff6f6439b20ee04775d3c2,
     type: 3}
   highlight: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
+  spherePrefab: {fileID: 6455583258980142827, guid: 5f46d6f48ce35e74ab406c980eb22afb,
+    type: 3}
+  cubePrefab: {fileID: 719351315123010444, guid: 6a74a7d73f189244fa200a4a688bc510,
+    type: 3}

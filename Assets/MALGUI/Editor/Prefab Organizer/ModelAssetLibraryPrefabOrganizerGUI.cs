@@ -116,10 +116,8 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
 
             using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.ExpandHeight(true))) {
                 GUILayout.FlexibleSpace();
-                using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                    string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
-                    GUILayout.Label(name, UIStyles.CenteredLabelBold);
-                } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+                EditorUtils.DrawWindowBoxLabel(ModelAssetLibrary.PrefabDataDict[prefabID].name);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                     if (GUILayout.Button("Open Library", GUILayout.MaxHeight(24))) {
                         SwitchToLibrary(ModelAssetLibrary.PrefabDataDict[prefabID].modelID);
                     } using (new EditorGUILayout.HorizontalScope()) {
@@ -166,6 +164,22 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
         }
     }
 
+    private static void DrawDragAndDropPreviewModel(string modelID) {
+        using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
+            Rect buttonRect = GUILayoutUtility.GetRect(50, 50, GUILayout.ExpandWidth(false));
+            if (buttonRect.Contains(Event.current.mousePosition)) {
+                bool mouseDown = Event.current.type == EventType.MouseDown;
+                bool leftClick = Event.current.button == 0;
+                if (mouseDown && leftClick) {
+                    DragAndDrop.PrepareStartDrag();
+                    DragAndDrop.StartDrag("Dragging");
+                    DragAndDrop.objectReferences = new Object[] { ModelCardMap[modelID] };
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Move;
+                }
+            } GUI.Label(buttonRect, new GUIContent(EditorUtils.FetchIcon("d_PrefabModel Icon")), GUI.skin.button);
+        }
+    }
+
     /// <summary>
     /// Whether a Drag & Drop Selection Group wipe may happen at the end of the frame;
     /// </summary>
@@ -183,12 +197,10 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(210))) {
             using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                 using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox, GUILayout.Width(210))) {
-                    GUILayout.Label(new GUIContent(EditorUtils.FetchIcon("d_PrefabModel Icon")),
-                                    GUI.skin.button, GUILayout.Width(50), GUILayout.Height(50));
+                    DrawDragAndDropPreviewModel(modelID);
                     using (new EditorGUILayout.VerticalScope()) {
-                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                            GUILayout.Label(ModelAssetLibrary.ModelDataDict[modelID].name, UIStyles.CenteredLabelBold, GUILayout.Height(14));
-                        } using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox, GUILayout.Height(24))) {
+                        EditorUtils.DrawWindowBoxLabel(ModelAssetLibrary.ModelDataDict[modelID].name, GUILayout.Height(14));
+                        using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox, GUILayout.Height(24))) {
                             GUI.color = UIColors.Blue;
                             if (GUILayout.Button("Reimport", EditorStyles.miniButton)) {
                                 ModelImporter model = AssetImporter.GetAtPath(ModelAssetLibrary.ModelDataDict[modelID].path) as ModelImporter;

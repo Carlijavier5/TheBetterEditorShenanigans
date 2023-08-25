@@ -42,6 +42,9 @@ public static class ModelAssetLibraryPrefabOrganizer {
     } /// <summary> Dictionary mapping path keys to the corresponding Prefab Card Data; </summary>
     public static Dictionary<string, PrefabCardData> PrefabCardMap { get; private set; }
 
+    /// <summary> Dictionary mapping path keys to the root game object of a Model; </summary>
+    public static Dictionary<string, GameObject> ModelCardMap { get; private set; }
+
     /// <summary> Selection group that may be passed to the DragAndDrop class; </summary>
     public static List<Object> DragSelectionGroup { get; private set; }
     /// <summary> Whether the mouse hovered over a button in the current frame; </summary>
@@ -74,7 +77,7 @@ public static class ModelAssetLibraryPrefabOrganizer {
         CategoryMap = new Dictionary<string, CategoryData>();
         foreach (KeyValuePair<string, HierarchyBuilder.FolderData> kvp in folderMap) {
             CategoryMap[kvp.Key] = new CategoryData(kvp.Value.name);
-            foreach (string modelPath in kvp.Value.files) {
+            foreach (string modelPath in kvp.Value.models) {
                 CategoryMap[kvp.Key].modelIDs.Add(AssetDatabase.AssetPathToGUID(modelPath));
             }
             foreach (string modelID in CategoryMap[kvp.Key].modelIDs) {
@@ -97,13 +100,8 @@ public static class ModelAssetLibraryPrefabOrganizer {
     /// Unloads all static data contained in the tool;
     /// </summary>
     public static void FlushCategoryData() {
-        if (PrefabCardMap != null) {
-            foreach (PrefabCardData data in PrefabCardMap.Values) {
-                if (data != null && data.preview != null) {
-                    Object.DestroyImmediate(data.preview);
-                }
-            } PrefabCardMap = null;
-        } CategoryMap = null;
+        PrefabCardMap = null;
+        CategoryMap = null;
         SelectedCategory = null;
         DragSelectionGroup = null;
         SortMode = 0;
@@ -120,19 +118,24 @@ public static class ModelAssetLibraryPrefabOrganizer {
     public static void LoadCategoryData(string path) {
         if (CategoryMap == null) BuildCategoryMap();
         if (PrefabCardMap == null) PrefabCardMap = new Dictionary<string, PrefabCardData>();
+        if (ModelCardMap == null) ModelCardMap = new Dictionary<string, GameObject>();
         prefabNameMapList = new List<KeyValuePair<string, string>>();
         foreach (string prefabID in CategoryMap[path].prefabIDs) {
             if (!PrefabCardMap.ContainsKey(prefabID)) {
-                string assetPath = ModelAssetLibrary.PrefabDataDict[prefabID].path;
+                var prefabData = ModelAssetLibrary.PrefabDataDict[prefabID];
+                string assetPath = prefabData.path;
                 GameObject rootObject = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
                 Texture2D preview = AssetPreview.GetAssetPreview(rootObject);
                 while (preview == null) {
                     preview = AssetPreview.GetAssetPreview(rootObject);
-                } preview.hideFlags = HideFlags.HideAndDontSave;
-                PrefabCardMap[prefabID] = new PrefabCardData(rootObject, preview);
+                } PrefabCardMap[prefabID] = new PrefabCardData(rootObject, preview);
             } string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
             prefabNameMapList.Add(new KeyValuePair<string, string>(name, prefabID));
         } DragSelectionGroup = new List<Object>();
+        foreach (string modelID in CategoryMap[path].modelIDs) {
+            string modelPath = ModelAssetLibrary.ModelDataDict[modelID].path;
+            ModelCardMap[modelID] = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+        }
     }
 
     /// <summary>

@@ -6,4 +6,6 @@ public class ModelAssetLibraryAssets : ScriptableObject {
     public Texture2D noMaterialPreview;
     public Texture2D meshPreviewBackground;
     public Material highlight;
+    public GameObject spherePrefab;
+    public GameObject cubePrefab;
 }

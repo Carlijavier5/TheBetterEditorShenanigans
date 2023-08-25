@@ -31,6 +31,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     } /// <summary> Selected distribution of Available Meshes and Materials in the GUI; </summary>
     private static MaterialSearchMode materialSearchMode;
 
+    /// <summary> Temporary variable storing potential asset notes; </summary>
     private static bool editNotes;
 
     /// <summary> Temporary notes stored in the GUI; </summary>
@@ -51,6 +52,8 @@ public static class ModelAssetLibraryModelReaderGUI {
 
     private static Vector2 prefabLogScroll;
     private static Vector2 prefabListScroll;
+
+    private static Vector2 animationScroll;
 
     #endregion
 
@@ -84,7 +87,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                 WIP();
                 break;
             case SectionType.Animations:
-                WIP();
+                ShowAnimationsSection();
                 break;
             case SectionType.Skeleton:
                 WIP();
@@ -99,6 +102,7 @@ public static class ModelAssetLibraryModelReaderGUI {
         notes = null;
         editNotes = false;
         materialSearchMode = 0;
+        MainGUI.SetHighRepaintFrequency(false);
         meshUpperScroll = Vector2.zero;
         meshLowerScroll = Vector2.zero;
         topMaterialScroll = Vector2.zero;
@@ -106,6 +110,7 @@ public static class ModelAssetLibraryModelReaderGUI {
         rightMaterialScroll = Vector2.zero;
         prefabLogScroll = Vector2.zero;
         prefabListScroll = Vector2.zero;
+        animationScroll = Vector2.zero;
     }
 
     #endregion
@@ -351,7 +356,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                                     .ShowPreviewSettings(ReaderMeshPreview,
                                                          GUIUtility.GUIToScreenRect(GUILayoutUtility.GetLastRect()));
                             }
-                        } else DrawObjectPreviewEditor(DummyGameObject, 192, 192);
+                        } else DrawInternalObjectPreviewEditor(DummyGameObject, 192, 192);
                         using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                             if (GUILayout.Button("Open In Materials")) SwitchToMaterials(SelectedMesh.renderer);
                         }
@@ -526,7 +531,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(200), GUILayout.Height(200))) {
                         GUILayout.Label("Material Preview", UIStyles.CenteredLabel);
                         if (SelectedMaterial != null && SelectedMaterial.renderer != null) {
-                            DrawObjectPreviewEditor(DummyGameObject, 192, 192);
+                            DrawInternalObjectPreviewEditor(DummyGameObject, 192, 192);
                             if (GUILayout.Button("Update Preview")) {
                                 UpdateObjectPreview();
                             }
@@ -788,8 +793,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                 } GUIContent clearContent = new GUIContent(" Clear", EditorUtils.FetchIcon("d_winbtn_win_close@2x"));
                 if (GUILayout.Button(clearContent, EditorStyles.miniButton, GUILayout.MaxHeight(18))) PrefabActionLog.Clear();
             }
-        }
-        using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.MaxWidth(660))) {
+        } using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.MaxWidth(660))) {
             EditorUtils.DrawSeparatorLines("Registered Prefab Variants", true);
             using (var view = new EditorGUILayout.ScrollViewScope(prefabListScroll, GUILayout.ExpandHeight(false))) {
                 prefabListScroll = view.scrollPosition;
@@ -891,6 +895,63 @@ public static class ModelAssetLibraryModelReaderGUI {
         PrefabOrganizer.SetSelectedCategory(path);
         PrefabOrganizer.SetSearchString(name);
         GUIUtility.ExitGUI();
+    }
+
+    #endregion
+
+    #region | Animations Section |
+
+    /// <summary> GUI Display for the Animations Section </summary>
+    public static void ShowAnimationsSection() {
+        if (AnimationEditor == null) FetchAnimationEditor();
+
+        int panelWidth = 620;
+        using (new EditorGUILayout.HorizontalScope()) {
+            using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
+                EditorUtils.DrawWindowBoxLabel("Animation Editor");
+                EditorGUILayout.Separator();
+                using (var scope = new EditorGUILayout.ScrollViewScope(animationScroll)) {
+                    animationScroll = scope.scrollPosition;
+                    DrawAnimationEditor();
+                }
+            } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
+                EditorUtils.DrawWindowBoxLabel("Animation Preview");
+                using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
+                    if (AnimationEditor.HasPreviewGUI()) {
+                        using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
+                            GUILayout.Label("Preview Settings:", new GUIStyle(GUI.skin.label) { contentOffset = new Vector2(0, -1) });
+                            AnimationEditor.OnPreviewSettings();
+                        } using (new EditorGUILayout.HorizontalScope()) {
+                            GUILayout.FlexibleSpace();
+                            using (new EditorGUILayout.VerticalScope()) {
+                                Rect rect = GUILayoutUtility.GetRect(panelWidth / 2 + 20, 0, GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true));
+                                AnimationEditor.OnInteractivePreviewGUI(rect, GUIStyle.none);
+                            } GUILayout.FlexibleSpace();
+                        }
+                    } else EditorUtils.DrawScopeCenteredText("No animation to preview;");
+                } MainGUI.SetHighRepaintFrequency(true);
+            } 
+        }
+    }
+
+    /// <summary>
+    /// Draws the Animation Clip Editor tab from the internal Model Importer Editor;
+    /// </summary>
+    private static void DrawAnimationEditor() {
+        /// Fetch a reference to the parent Asset Importer Editor, which contains the tabs array field;
+        var baseType = typeof(Editor).Assembly.GetType("UnityEditor.AssetImporterTabbedEditor");
+        /// Fetch a reference to the Model Importer Clip Editor tab class;
+        var tabType = typeof(Editor).Assembly.GetType("UnityEditor.ModelImporterClipEditor");
+        /// Fetch a reference to the field containing a tab array;
+        var tabField = baseType.GetField("m_Tabs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        /// Fetch a referebce to the OnInspectorGUI method fo the tab;
+        var tabGUI = tabType.GetMethod("OnInspectorGUI");
+        /// Cast the field value to an array of objects;
+        object[] tabArray = (object[]) tabField.GetValue(AnimationEditor);
+        /// Access the Animation Clip Editor tab, residing in index 2;
+        var animationTab = tabArray[2];
+        /// Invoke the method on the Animation Clip Editor tab;
+        tabGUI.Invoke(animationTab, null);
     }
 
     #endregion

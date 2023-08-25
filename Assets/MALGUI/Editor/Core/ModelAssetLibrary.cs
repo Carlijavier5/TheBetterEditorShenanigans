@@ -74,6 +74,13 @@ public static class ModelAssetLibrary {
     } /// <summary> Maps a Prefab GUID to its file path and associated model </summary>
     public static Dictionary<string, PrefabData> PrefabDataDict { get; private set; }
 
+    /// <summary> A baby class containing a material path and its parsed name; </summary>
+    public class MaterialData {
+        public string name;
+        public string path;
+    } /// <summary> Maps a Material GUID to its file path and name; </summary>
+    public static Dictionary<string, MaterialData> MaterialDataDict { get; private set; }
+
     /// <summary> Registry options for the FindAssets() method; </summary>
     public enum RegistryMode {
         /// <summary> No assets will be registered while searching the folders; </summary>

@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using Reader = ModelAssetLibraryModelReader;
 using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
+using MaterialManager = ModelAssetLibraryMaterialManager;
 using TempManager = ModelAssetLibraryTempMaterialManager;
 using ExtManager = ModelAssetLibraryExtManager;
 using ExtData = ModelAssetLibraryExtData;
@@ -78,9 +79,6 @@ public static class ModelAssetLibraryAssetPreprocessor {
 
     /// <summary> Original material map used by the Model to reimport; </summary>
     private static Dictionary<string, Material> originalInternalMap;
-
-    /// <summary> Delegate for the local Shader Popup event set-up; </summary>
-    public static System.Action<Shader> OnShaderResult;
 
     #endregion
 
@@ -372,32 +370,6 @@ public static class ModelAssetLibraryAssetPreprocessor {
         if (originalInternalMap.ContainsKey(key)) ReplacePersistentMaterial(key, originalInternalMap[key]);
         else ReplaceGlobalMapping();
         PreservedMaterialMap.Remove(key);
-    }
-
-    #endregion
-
-    #region | Shader Selection Shenanigans |
-
-    /// <summary>
-    /// Fetches the internal Advanced Popup used for shader selection in the Material Editor;
-    /// </summary>
-    /// <param name="position"> Rect used to draw the popup button; </param>
-    public static void ShowShaderSelectionMagic(Rect position) {
-        System.Type type = typeof(Editor).Assembly.GetType("UnityEditor.MaterialEditor+ShaderSelectionDropdown");
-        var dropDown = System.Activator.CreateInstance(type, args: new object[] { Shader.Find("Transparent/Diffuse"), (System.Action<object>) OnSelectedShaderPopup });
-        MethodInfo method = type.GetMethod("Show");
-        method.Invoke(dropDown, new object[] { position });
-    }
-
-    /// <summary>
-    /// Output method for the Shader Selection event set-up;
-    /// </summary>
-    /// <param name="objShaderName"> Object output from the Shader Selection event containing a shader name; </param>
-    private static void OnSelectedShaderPopup(object objShaderName) {
-        var shaderName = (string) objShaderName;
-        if (!string.IsNullOrEmpty(shaderName)) {
-            OnShaderResult?.Invoke(Shader.Find(shaderName));
-        }
     }
 
     #endregion

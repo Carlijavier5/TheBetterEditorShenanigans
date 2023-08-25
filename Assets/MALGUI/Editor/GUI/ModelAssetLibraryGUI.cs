@@ -5,6 +5,7 @@ using ModelReader = ModelAssetLibraryModelReader;
 using ModelReaderGUI = ModelAssetLibraryModelReaderGUI;
 using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
 using PrefabOrganizerGUI = ModelAssetLibraryPrefabOrganizerGUI;
+using MaterialManager = ModelAssetLibraryMaterialManager;
 using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
 
 /// <summary> Main GUI of the Model Asset Library;
@@ -41,6 +42,9 @@ public class ModelAssetLibraryGUI : EditorWindow {
     } /// <summary> The tool actively displayed within the library; </summary>
     private static ToolMode toolMode;
 
+    /// <summary> Whether the window should repaint every frame; </summary>
+    private static bool highRepaintFrequency;
+
     private Vector2 directoryScroll;
     private Vector2 toolScroll;
 
@@ -61,6 +65,10 @@ public class ModelAssetLibraryGUI : EditorWindow {
     void OnFocus() {
         if (HasOpenInstances<ModelAssetLibraryGUI>()
             && MainGUI == null) MainGUI = GetWindow<ModelAssetLibraryGUI>();
+    }
+
+    void Update() {
+        if (highRepaintFrequency) Repaint();
     }
 
     void OnGUI() {
@@ -127,6 +135,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 PrefabOrganizerGUI.DrawPrefabOrganizerToolbar();
                 break;
             case ToolMode.MaterialManager:
+                MaterialManager.DrawMaterialToolbar();
                 break;
         } if (GUILayout.Button(EditorUtils.FetchIcon("_Popup"), EditorStyles.toolbarButton, GUILayout.MinWidth(32), GUILayout.MaxWidth(32))) {
             ModelAssetLibraryConfigurationGUI.ShowWindow();
@@ -145,6 +154,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 PrefabOrganizerGUI.ShowSelectedCategory();
                 break;
             case ToolMode.MaterialManager:
+                MaterialManager.ShowSelectedSection();
                 break;
         }
     }
@@ -161,6 +171,7 @@ public class ModelAssetLibraryGUI : EditorWindow {
                 PrefabOrganizer.FlushCategoryData();
                 break;
             case ToolMode.MaterialManager:
+                MaterialManager.FlushAssetData();
                 break;
         }
     }
@@ -171,8 +182,14 @@ public class ModelAssetLibraryGUI : EditorWindow {
     private void FlushGlobalToolData() {
         ModelReader.FlushAssetData();
         PrefabOrganizer.FlushCategoryData();
+        MaterialManager.FlushAssetData();
         HierarchyBuilder.FlushHierarchyData();
         //ModelAssetLibrary.UnloadDictionaries();
         toolMode = 0;
+        SetHighRepaintFrequency(false);
+    }
+
+    public static void SetHighRepaintFrequency(bool useHigh) {
+        highRepaintFrequency = useHigh;
     }
 }

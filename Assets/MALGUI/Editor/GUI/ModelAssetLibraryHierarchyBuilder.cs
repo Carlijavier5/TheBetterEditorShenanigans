@@ -5,6 +5,7 @@ using CJUtils;
 using static ModelAssetLibraryGUI;
 using ModelReader = ModelAssetLibraryModelReader;
 using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
+using MaterialManager = ModelAssetLibraryMaterialManager;
 
 /// <summary> Core class of the Model Asset Library;
 /// <br></br> Reads the folder directory and generates interactable Hierarchy Previews; </summary>
@@ -14,7 +15,8 @@ public class ModelAssetLibraryHierarchyBuilder {
     public class FolderData {
         public string name;
         public List<string> subfolders;
-        public List<string> files;
+        public List<string> models;
+        public List<string> materials;
         public bool foldout = true;
     } /// <summary> Dictionary that maps each folder path in the hierarchy to some useful information; </summary>
     public static Dictionary<string, FolderData> FolderMap { get; private set; }
@@ -25,11 +27,16 @@ public class ModelAssetLibraryHierarchyBuilder {
     /// <summary> Sorted list of all identified model-containing folders for the search function; </summary>
     private static List<string> folderList;
 
+    /// <summary> Sorted list of all identfied materials for the search function; </summary>
+    private static List<string> materialList;
+
     /// <summary> Currently selected model path in the hierarchy; </summary>
     private static string SelectedModelPath { get { return ModelReader.Model != null ? ModelReader.Model.assetPath : null; } }
 
     /// <summary> Currently selected category path in the hierarchy; </summary>
     private static string SelectedCategoryPath { get { return PrefabOrganizer.SelectedCategory; } }
+
+    private static string SelectedMaterialPath { get { return MaterialManager.EditedMaterial != null ? MaterialManager.EditedMaterial.path : null; } }
 
     /// GUI variables;
     private static string searchString;
@@ -40,10 +47,20 @@ public class ModelAssetLibraryHierarchyBuilder {
     public static void InitializeHierarchyData() {
         modelList = new List<string>();
         folderList = new List<string>();
+        materialList = new List<string>();
         FolderMap = BuildFolderMap(ModelAssetLibrary.RootAssetPath, false);
-        modelList.Sort((name1, name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/")));
-        folderList.Sort((name1, name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/")));
+        modelList.Sort((name1, name2) => AlnumSort(name1, name2));
+        folderList.Sort((name1, name2) => AlnumSort(name1, name2));
+        materialList.Sort((name1, name2) => AlnumSort(name1, name2));
     }
+
+    /// <summary>
+    /// Alphanumerical sort comparison expression;
+    /// </summary>
+    /// <param name="name1"> First string; </param>
+    /// <param name="name2"> Second string; </param>
+    /// <returns> A comparison integer between two strings based on lexicographical order; </returns>
+    private static int AlnumSort(string name1, string name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/"));
 
     /// <summary>
     /// Unloads all static data;
@@ -51,6 +68,7 @@ public class ModelAssetLibraryHierarchyBuilder {
     public static void FlushHierarchyData() {
         modelList = null;
         folderList = null;
+        materialList = null;
         FolderMap = null;
     }
 
@@ -66,22 +84,20 @@ public class ModelAssetLibraryHierarchyBuilder {
         if (newFolderMap == null) newFolderMap = new Dictionary<string, FolderData>();
         newFolderMap[path] = new FolderData();
         List<string> subfolders = new List<string>(AssetDatabase.GetSubFolders(path));
-        List<string> files = new List<string>(ModelAssetLibrary.FindAssets(path, ModelAssetLibrary.ModelFileExtensions));
-        for (int i = 0; i < files.Count; i++) files[i] = files[i].Replace('\\', '/');
-        if (subfolders.Count > 0 || files.Count > 0) {
-            newFolderMap[path].name = path.IsolatePathEnd("\\/");
-            newFolderMap[path].subfolders = new List<string>(subfolders);
-            newFolderMap[path].files = files;
-            foreach (string subfolder in subfolders) {
-                BuildFolderMap(subfolder, externalCall, newFolderMap);
-            } if (!externalCall) {
-                modelList.AddRange(files);
-                if (files.Count > 0) folderList.Add(path);
-            }
-        } else {
-            string parentPath = path.RemovePathEnd("\\/");
-            newFolderMap[parentPath].subfolders.Remove(path);
-            newFolderMap.Remove(path);
+        List<string> models = new List<string>(ModelAssetLibrary.FindAssets(path, ModelAssetLibrary.ModelFileExtensions));
+        List<string> materials = new List<string>(ModelAssetLibrary.FindAssets(path, new string[] { "MAT" }));
+        for (int i = 0; i < models.Count; i++) models[i] = models[i].Replace('\\', '/');
+        FolderData folderEntry = newFolderMap[path];
+        folderEntry.name = path.IsolatePathEnd("\\/");
+        folderEntry.subfolders = subfolders;
+        folderEntry.models = models;
+        folderEntry.materials = materials;
+        foreach (string subfolder in subfolders) {
+            BuildFolderMap(subfolder, externalCall, newFolderMap);
+        } if (!externalCall) {
+            modelList.AddRange(models);
+            if (models.Count > 0) folderList.Add(path);
+            materialList.AddRange(materials);
         } return newFolderMap;
     }
 
@@ -96,6 +112,12 @@ public class ModelAssetLibraryHierarchyBuilder {
     /// </summary>
     /// <param name="path"> Path of the folder; </param>
     private static void SetSelectedPrefabFolder(string path) { if (SelectedCategoryPath != path) PrefabOrganizer.SetSelectedCategory(path); }
+
+    /// <summary>
+    /// Sets the Edited Material in the Material Manager;
+    /// </summary>
+    /// <param name="path"> Path to the material; </param>
+    private static void SetSelectedMaterial(string path) { if (SelectedMaterialPath != path) MaterialManager.SetEditedMaterial(path); }
 
     /// <summary>
     /// Generates a Results List using the Search String obtained through the Hierarchy Search Bar; 
@@ -154,7 +176,21 @@ public class ModelAssetLibraryHierarchyBuilder {
     }
 
     private static void DisplayMaterialManagerDirectory() {
-
+        switch (MaterialManager.ActiveSection) {
+            case MaterialManager.SectionType.Editor:
+                if (string.IsNullOrWhiteSpace(searchString)) {
+                    DrawMaterialDictionary(ModelAssetLibrary.RootAssetPath);
+                } else DrawSearchQuery(searchString, ToolMode.MaterialManager);
+                GUI.enabled = true;
+                break;
+            case MaterialManager.SectionType.Creator:
+            case MaterialManager.SectionType.Organizer:
+                GUI.enabled = false;
+                goto case MaterialManager.SectionType.Editor;
+            case MaterialManager.SectionType.Replacer:
+                
+                break;
+        }
     }
 
     #region | Search Bar |
@@ -189,24 +225,58 @@ public class ModelAssetLibraryHierarchyBuilder {
     #endregion
 
     /// <summary>
+    /// Perform a search through subfolders to identify any folder containing models or materials;
+    /// <br></br> Used to determine whether a folder/foldout is worth drawing;
+    /// </summary>
+    /// <param name="path"> Path to begin the subfolder search in; </param>
+    /// <param name="searchModels"> Whether to search for models or materials; </param>
+    /// <returns> Whether a folder containing models or materials was found; </returns>
+    private static bool PerformAssetSearch(string path, bool searchModels = true) {
+        foreach (string folder in FolderMap[path].subfolders) {
+            int countParameter = searchModels ? FolderMap[folder].models.Count : FolderMap[folder].materials.Count;
+            if (countParameter > 0) return true;
+            else if (FolderMap[folder].subfolders.Count > 0) return PerformAssetSearch(folder);
+        } return false;
+    }
+
+    /// <summary>
+    /// Draw a conditional foldout based on folder data;
+    /// </summary>
+    /// <param name="path"> Path to the foldout folder to draw; </param>
+    /// <param name="data"> Data pertaining to the folder to draw; </param>
+    /// <param name="marginCondition"> Whether the folder will fold out to show materials; </param>
+    /// <returns></returns>
+    private static bool DrawConditionalFoldout(string path, FolderData data, bool marginCondition) {
+        GUIContent foldoutContent = new GUIContent(" " + path.IsolatePathEnd("/\\"),
+                                        EditorUtils.FetchIcon(data.foldout ? "d_FolderOpened Icon" : "d_Folder Icon"));
+        float width = EditorUtils.MeasureTextWidth(data.name, GUI.skin.font);
+        return EditorGUILayout.Foldout(data.foldout, foldoutContent,
+                                                     new GUIStyle(EditorStyles.foldoutHeader) {
+                                                         fixedWidth = width + 48,
+                                                         fixedHeight = 19,
+                                                         margin = new RectOffset(0, 0, 0,
+                                                         marginCondition && data.foldout ? 2 : 0)
+                                                     });
+    }
+
+    /// <summary>
     /// Draws a folder + model hierarchy on the left-hand interface;
     /// </summary>
     /// <param name="path"> Path to the root folder where the hierarchy begins;
     /// <br></br> Note: The root folder path will be included in the hierarchy; </param>
     private static void DrawModelDictionary(string path) {
-
-        if (FolderMap[path].subfolders.Count > 0 || FolderMap[path].files.Count > 0) {
-            GUIContent foldoutContent = new GUIContent(" " + path.IsolatePathEnd("/\\"),
-                                                   EditorUtils.FetchIcon(FolderMap[path].foldout ? "d_FolderOpened Icon" : "d_Folder Icon"));
-            FolderMap[path].foldout = EditorGUILayout.Foldout(FolderMap[path].foldout, foldoutContent);
+        FolderData data = FolderMap[path];
+        bool hasModels = data.models.Count > 0;
+        if (hasModels || (data.subfolders.Count > 0 && PerformAssetSearch(path))) {
+            data.foldout = DrawConditionalFoldout(path, data, hasModels);
         } EditorGUI.indentLevel++;
 
         if (FolderMap[path].foldout) {
             foreach (string subfolder in FolderMap[path].subfolders) {
                 DrawModelDictionary(subfolder);
                 EditorGUI.indentLevel--;
-            } foreach (string file in FolderMap[path].files) DrawModelButton(file);
-        } 
+            } foreach (string file in FolderMap[path].models) DrawModelButton(file);
+        }
     }
 
     /// <summary>
@@ -240,18 +310,19 @@ public class ModelAssetLibraryHierarchyBuilder {
     private static void DrawPrefabFolderDictionary(string path) {
 
         using (new EditorGUILayout.HorizontalScope()) {
-            bool hasFiles = FolderMap[path].files.Count > 0;
+            bool hasFiles = FolderMap[path].models.Count > 0;
             bool hasSubfolders = FolderMap[path].subfolders.Count > 0;
             GUIContent folderContent;
             if (hasFiles) {
                 folderContent = new GUIContent("");
             } else folderContent = new GUIContent(path.IsolatePathEnd("\\/"),
                                                   EditorUtils.FetchIcon(FolderMap[path].foldout ? "d_FolderOpened Icon" : "d_Folder Icon"));
-            if (hasSubfolders) {
+            bool worthShowing = hasSubfolders && PerformAssetSearch(path);
+            if (worthShowing) {
                 Rect rect = GUILayoutUtility.GetRect(0, 18, GUILayout.Width(13));
                 FolderMap[path].foldout = EditorGUI.Foldout(rect, FolderMap[path].foldout, folderContent,
                                                                    new GUIStyle(EditorStyles.foldout) { stretchWidth = false });
-            } if (hasFiles) DrawPrefabFolderButton(path, hasSubfolders && FolderMap[path].foldout);
+            } if (hasFiles) DrawPrefabFolderButton(path, worthShowing && FolderMap[path].foldout);
         } EditorGUI.indentLevel++;
 
         if (FolderMap[path].foldout) {
@@ -272,5 +343,30 @@ public class ModelAssetLibraryHierarchyBuilder {
         GUIContent folderContent = new GUIContent(path.IsolatePathEnd("\\/"), EditorUtils.FetchIcon(folderOpened ? "d_FolderOpened Icon" : "d_Folder Icon"));
         float width = EditorUtils.MeasureTextWidth(folderContent.text, GUI.skin.font);
         if (GUILayout.Button(folderContent, buttonStyle, GUILayout.Width(width + 34), GUILayout.Height(20))) SetSelectedPrefabFolder(path);
+    }
+
+    private static void DrawMaterialDictionary(string path) {
+        FolderData data = FolderMap[path];
+        bool hasMaterials = data.materials.Count > 0;
+        if (hasMaterials || (data.subfolders.Count > 0 && PerformAssetSearch(path, false))) {
+            FolderMap[path].foldout = DrawConditionalFoldout(path, data, hasMaterials);
+        } EditorGUI.indentLevel++;
+
+        if (FolderMap[path].foldout) {
+            foreach (string subfolder in FolderMap[path].subfolders) {
+                DrawMaterialDictionary(subfolder);
+                EditorGUI.indentLevel--;
+            } foreach (string materialPath in FolderMap[path].materials) DrawMaterialButton(materialPath);
+        }
+    }
+
+    private static void DrawMaterialButton(string path) {
+        bool selected = path == SelectedMaterialPath;
+        GUIStyle buttonStyle = selected ? UIStyles.HButtonSelected : UIStyles.HButton;
+        string pathName = path.IsolatePathEnd("\\/").RemovePathEnd(".");
+        float width = EditorUtils.MeasureTextWidth(pathName, GUI.skin.font);
+        GUIContent materialContent = new GUIContent(pathName, 
+                                                    EditorUtils.FetchIcon(selected ? "d_Material Icon" : "d_Material On Icon"));
+        if (GUILayout.Button(materialContent, buttonStyle, GUILayout.Width(width + 29), GUILayout.Height(20))) SetSelectedMaterial(path);
     }
 }

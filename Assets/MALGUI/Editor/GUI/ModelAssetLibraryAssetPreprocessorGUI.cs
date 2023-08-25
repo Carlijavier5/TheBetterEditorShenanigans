@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
+using ModelReader = ModelAssetLibraryModelReader;
+using MaterialManager = ModelAssetLibraryMaterialManager;
 using static ModelAssetLibraryAssetPreprocessor;
 
 /// <summary>
@@ -60,7 +62,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     private Vector2 materialSlotScroll;
 
     void OnEnable() {
-        ModelAssetLibraryModelReader.CleanObjectPreview();
+        ModelReader.CleanObjectPreview();
         if (Options == null) return;
         if (Options.model != null) {
             modelGO = AssetDatabase.LoadAssetAtPath<GameObject>(Options.model.assetPath);
@@ -69,7 +71,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     void OnDisable() {
-        ModelAssetLibraryModelReader.CleanObjectPreview();
+        ModelReader.CleanObjectPreview();
         if (Options != null) FlushImportData();
 
         tempMaterials = null;
@@ -182,7 +184,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                            ModelAssetLibraryModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                            ModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
                             if (GUILayout.Button("Expanded Preview")) {
                                 ModelAssetLibraryPreviewExpanded.ShowPreviewWindow(modelGO);
                             }
@@ -194,7 +196,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                                 GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                                ModelAssetLibraryModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                                ModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
                                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { richText = true }; 
                                 buttonStyle.fontSize--;
                                 if (GUILayout.Button("<b>Expand Preview</b>", buttonStyle)) {
@@ -336,16 +338,14 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
 
     /// <summary>
     /// Draws a Shader Popup... It literally says it in the header bruh;
+    /// <br></br> Used the Advanced Dropdown extracted by the Material Manager;
     /// </summary>
     /// <param name="shaderContent"> Text to display in the popup header; </param>
     /// <param name="key"> Key where the shader value will be placed; </param>
     private void DrawShaderPopup(GUIContent shaderContent, string key) {
         shaderKey = key;
         Rect position = EditorGUILayout.GetControlRect(GUILayout.MinWidth(135));
-        if (EditorGUI.DropdownButton(position, shaderContent, FocusType.Keyboard, EditorStyles.miniPullDown)) {
-            OnShaderResult += ApplyShaderResult;
-            ShowShaderSelectionMagic(position);
-        }
+        MaterialManager.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
     }
 
     /// <summary>
@@ -356,6 +356,6 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
         if (shaderKey == null) Options.shader = shader;
         else MaterialOverrideMap[shaderKey].shader = shader;
         shaderKey = null;
-        OnShaderResult -= ApplyShaderResult;
+        MaterialManager.OnShaderResult -= ApplyShaderResult;
     }
 }

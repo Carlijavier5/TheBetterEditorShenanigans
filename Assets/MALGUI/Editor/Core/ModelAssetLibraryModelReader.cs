@@ -1,13 +1,13 @@
-using System.IO;
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEditor;
 using CJUtils;
+using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
 using ExtData = ModelAssetLibraryExtData;
 
 /// <summary> Component class of the Model Asset Library;
 /// <br></br> Reads asset data and displays the corresponding properties in the GUI; </summary>
-public static class ModelAssetLibraryModelReader {
+public class ModelAssetLibraryModelReader {
 
     #region | General Section Varaibles |
 
@@ -22,72 +22,72 @@ public static class ModelAssetLibraryModelReader {
         Animations,
         Skeleton
     } /// <summary> Section currently selected in the GUI; </summary>
-    public static SectionType ActiveSection { get; private set; }
+    private SectionType ActiveSection;
 
     /// <summary> Potential Model content limitations; </summary>
-    public enum AssetMode {
+    private enum AssetMode {
         Model,
         Animation
     } /// <summary> Asset Mode currently selected in the GUI; </summary>
-    public static AssetMode ActiveAssetMode { get; private set; }
+    private AssetMode ActiveAssetMode;
 
     /// <summary> Model path currently selected in the GUI; </summary>
-    public static string SelectedModel { get; private set; }
+    private string SelectedModel;
 
     #endregion
 
     #region | General Reference Variables |
 
     /// <summary> Reference to the model importer file; </summary>
-    public static ModelImporter Model { get; private set; }
+    private ModelImporter Model;
     /// <summary> GUID of the currently selected model; </summary>
-    public static string ModelID { get; private set; }
+    private string ModelID;
     /// <summary> Ext Data of the selected mode; </summary>
-    public static ExtData ModelExtData { get; private set; }
+    private ExtData ModelExtData;
     /// <summary> Reference to the prefab, if any, contained in the model; </summary>
-    public static GameObject Prefab { get; private set; }
+    private GameObject Prefab;
     /// <summary> Reference to the Custom Icons Scriptable Object; </summary>
-    public static ModelAssetLibraryAssets CustomTextures { get; private set; }
+    private ModelAssetLibraryAssets CustomTextures;
 
     /// <summary> Disposable GameObject instantiated to showcase GUI changes non-invasively; </summary>
-    public static GameObject DummyGameObject { get; private set; }
+    private GameObject DummyGameObject;
 
     #endregion
 
     #region | Editor Variables |
 
     /// <summary> A disposable Editor class embedded in the Editor Window to show a preview of an instantiable asset; </summary>
-    public static Editor ReaderObjectPreview { get; private set; }
+    private Editor ReaderObjectPreview;
 
     /// <summary> A disposable Editor class embedded in the Editor Window to show a preview of a mesh asset; </summary>
-    public static MeshPreview ReaderMeshPreview { get; private set; }
+    private MeshPreview ReaderMeshPreview;
 
     /// <summary> An Editor Window displayed when a material asset is selected; </summary>
-    public static ModelAssetLibraryMaterialInspector MaterialInspectorWindow { get; set; }
+    private ModelAssetLibraryMaterialInspector MaterialInspectorWindow;
 
     /// <summary> An Editor Window displaying useful information about staging changes in the Materials Section; </summary>
-    public static ModelAssetLibraryMaterialHelper MaterialHelperWindow { get; set; }
+    private ModelAssetLibraryMaterialHelper MaterialHelperWindow;
 
     #endregion
 
     #region | Model Section Variables |
 
     /// <summary> The sum of all the vertices in a composite model; </summary>
-    public static int GlobalVertexCount { get; private set; }
+    private int GlobalVertexCount;
     /// <summary> The sum of all the triangles in a composite model; </summary>
-    public static int GlobalTriangleCount { get; private set; }
+    private int GlobalTriangleCount;
     /// <summary> Directory information on the target file; </summary>
-    public static FileInfo FileInfo { get; private set; }
+    private FileInfo FileInfo;
 
     #endregion
 
     #region | Mesh Section Variables |
 
     /// <summary> Mesh preview dictionary; </summary>
-    public static Dictionary<Renderer, Texture2D> MeshPreviewDict { get; private set; }
+    private Dictionary<Renderer, Texture2D> MeshPreviewDict;
 
     /// <summary> Struct to store renderers with filters and avoid unnecesary GetComponent() calls; </summary>
-    public struct MeshRendererPair {
+    private struct MeshRendererPair {
         public MeshFilter filter;
         public Renderer renderer;
         public MeshRendererPair(MeshFilter filter, Renderer renderer) {
@@ -104,10 +104,10 @@ public static class ModelAssetLibraryModelReader {
             return System.HashCode.Combine(filter, renderer);
         }
     } /// <summary> List of all the mesh renderers and mesh filters contained in the model </summary>
-    public static List<MeshRendererPair> MeshRenderers { get; private set; }
+    private List<MeshRendererPair> MeshRenderers;
 
     /// <summary> Class that bundles properties relevant to the selected mesh for quick handling and disposal; </summary>
-    public class SelectedMeshProperties {
+    private class SelectedMeshProperties {
         /// <summary> Mesh selected in the Editor Window; </summary>
         public Mesh mesh;
         /// <summary> Gameobject holding the mesh selected in the Editor Window </summary>
@@ -122,34 +122,34 @@ public static class ModelAssetLibraryModelReader {
             this.renderer = renderer;
         }
     } /// <summary> Relevant properties of the Mesh selected in the GUI; </summary>
-    public static SelectedMeshProperties SelectedMesh { get; private set; }
+    private SelectedMeshProperties SelectedMesh;
     /// <summary> Index of the selected SubMesh in the GUI (+1); </summary>
-    public static int SelectedSubmeshIndex { get; private set; }
+    private int SelectedSubmeshIndex;
 
     /// <summary> Vertex count of a single mesh; </summary>
-    public static int LocalVertexCount { get; private set; }
+    private int LocalVertexCount;
 
     /// <summary> Triangle count of a single mesh; </summary>
-    public static int LocalTriangleCount { get; private set; }
+    private int LocalTriangleCount;
 
     #endregion
 
     #region | Material Section Variables |
 
     /// <summary> Dictionary mapping each material to the renderers it is available in; </summary>
-    public static Dictionary<Material, List<MeshRendererPair>> MaterialDict { get; private set; }
+    private Dictionary<Material, List<MeshRendererPair>> MaterialDict;
 
     /// <summary> Dictionary mapping the current material slot selection; </summary>
-    public static Dictionary<string, Material> StaticMaterialSlots { get; private set; }
+    private Dictionary<string, Material> StaticMaterialSlots;
 
     /// <summary> Dictionary mapping the original material slot selection; </summary>
-    public static Dictionary<string, Material> OriginalMaterialSlots { get; private set; }
+    private Dictionary<string, Material> OriginalMaterialSlots;
 
     /// <summary> Whether the current slot selection differs from the old selection; </summary>
-    public static bool HasStaticSlotChanges { get; private set; }
+    private bool HasStaticSlotChanges;
 
     /// <summary> Class that bundles properties relevant to the selected material for quick handling and disposal; </summary>
-    public class SelectedMaterialProperties {
+    private class SelectedMaterialProperties {
         public Material material;
         public GameObject gameObject;
         public Renderer renderer;
@@ -173,17 +173,17 @@ public static class ModelAssetLibraryModelReader {
         }
     }
     /// <summary> Relevant properties of the material selected in the GUI; </summary>
-    public static SelectedMaterialProperties SelectedMaterial { get; private set; }
+    private SelectedMaterialProperties SelectedMaterial;
 
     #endregion
 
     #region | Prefab Section Variables |
 
     /// <summary> The prefab name currently written in the naming Text Field; </summary>
-    public static string name { get; set; }
+    private string name;
 
     /// <summary> Class containing relevant Prefab Variant information; </summary>
-    public class PrefabVariantData {
+    private class PrefabVariantData {
         public string guid;
         public string name;
         public PrefabVariantData(string guid, string name) {
@@ -191,7 +191,7 @@ public static class ModelAssetLibraryModelReader {
             this.name = name;
         }
     } /// <summary> A list containing all relevant prefab info, to avoid unnecessary operations every frame; </summary>
-    public static List<PrefabVariantData> PrefabVariantInfo { get; private set; }
+    private List<PrefabVariantData> PrefabVariantInfo;
 
     /// <summary> Potential results for the name validation process; </summary>
     public enum InvalidNameCondition {
@@ -202,10 +202,17 @@ public static class ModelAssetLibraryModelReader {
         Convention,
         Success
     } /// <summary> Current state of the name validation process; </summary>
-    public static InvalidNameCondition NameCondition { get; set; }
+    private InvalidNameCondition NameCondition;
 
     /// <summary> Static log of recent prefab registry changes; </summary>
-    public static Stack<string> PrefabActionLog { get; private set; }
+    private Stack<string> PrefabActionLog;
+
+    #endregion
+
+    #region | Animation Variables |
+
+    /// <summary> Internal editor used to embed the Animation Clip Editor from the Model Importer; </summary>
+    private Editor AnimationEditor;
 
     #endregion
 
@@ -215,9 +222,10 @@ public static class ModelAssetLibraryModelReader {
     /// Set the currently selected asset;
     /// </summary>
     /// <param name="path"> Path to the selected asset; </param>
-    public static void SetSelectedModel(string path) {
+    public void SetSelectedModel(string path) {
         FlushAssetData();
         LoadSelectedAsset(path);
+        ActiveAssetMode = AssetMode.Model;
         ActiveSection = SectionType.Model;
     }
 
@@ -225,7 +233,7 @@ public static class ModelAssetLibraryModelReader {
     /// Change the Toolbar to deal with a different type of Model content;
     /// </summary>
     /// <param name="newAssetMode"> New model type to atune the toolbar to; </param>
-    public static void SetSelectedAssetMode(AssetMode newAssetMode) {
+    private void SetSelectedAssetMode(AssetMode newAssetMode) {
         switch (newAssetMode) {
             case AssetMode.Model:
                 SetSelectedSection(SectionType.Model);
@@ -240,7 +248,7 @@ public static class ModelAssetLibraryModelReader {
     /// Sets the GUI's selected Reader Section;
     /// </summary>
     /// <param name="sectionType"> Type of the prospective section to show; </param>
-    public static void SetSelectedSection(SectionType sectionType) {
+    private void SetSelectedSection(SectionType sectionType) {
         if (ActiveSection != sectionType) {
             ActiveSection = sectionType;
             ResetSectionDependencies();
@@ -299,9 +307,10 @@ public static class ModelAssetLibraryModelReader {
     /// <summary>
     /// Resets variables whose contents depend on a specific section;
     /// </summary>
-    public static void ResetSectionDependencies() {
+    private void ResetSectionDependencies() {
         CleanObjectPreview();
         CleanMeshPreview();
+        CleanAnimationEditor();
         CloseMaterialInspectorWindow();
         CloseMaterialHelperWindow();
 
@@ -327,7 +336,7 @@ public static class ModelAssetLibraryModelReader {
     /// Assign a reference to the Model importer at the designated path and load corresponding references;
     /// </summary>
     /// <param name="path"> Path to the model to read; </param>
-    public static void LoadSelectedAsset(string path) {
+    private void LoadSelectedAsset(string path) {
         Model = AssetImporter.GetAtPath(path) as ModelImporter;
         ModelID = AssetDatabase.AssetPathToGUID(Model.assetPath);
         ModelExtData = ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null;
@@ -348,7 +357,7 @@ public static class ModelAssetLibraryModelReader {
     /// Updates the Model Notes and disables hot control to properly update the Text Area;
     /// </summary>
     /// <param name="notes"> Notes to pass to the ExtData; </param>
-    public static void UpdateAssetNotes(string notes) {
+    private void UpdateAssetNotes(string notes) {
         using (var so = new SerializedObject(ModelExtData)) {
             SerializedProperty noteProperty = so.FindProperty("notes");
             noteProperty.stringValue = notes;
@@ -361,14 +370,14 @@ public static class ModelAssetLibraryModelReader {
 
     #region | Mesh Helpers |
 
-    public static void SetSelectedMesh(Mesh mesh, GameObject gameObject, Renderer renderer) {
+    private void SetSelectedMesh(Mesh mesh, GameObject gameObject, Renderer renderer) {
         ResetSectionDependencies();
         SelectedMesh = new SelectedMeshProperties(mesh, gameObject, renderer);
         LocalVertexCount = mesh.vertexCount;
         LocalTriangleCount = mesh.triangles.Length;
     }
 
-    public static void SetSelectedSubMesh(int index) {
+    private void SetSelectedSubMesh(int index) {
         CleanMeshPreview();
         CleanObjectPreview();
         if (index > 0) {
@@ -385,65 +394,11 @@ public static class ModelAssetLibraryModelReader {
     #region | Material Helpers |
 
     /// <summary>
-    /// Replaces a serialized material reference with another in the target model importer;
-    /// <br></br> If the passed material is null, deletes the corresponding external map key;
-    /// </summary>
-    /// <param name="key"> Name of the material binding to change; </param>
-    /// <param name="newMaterial"> Material to place in the binding; </param>
-    public static void ReplacePersistentMaterial(string key, Material newMaterial, ModelImporter Model) {
-
-        using (SerializedObject serializedObject = new SerializedObject(Model)) {
-            SerializedProperty extObjects = serializedObject.FindProperty("m_ExternalObjects");
-
-            if (newMaterial != null) {
-                /// Note: I'm aware the process below could be optimized by accounting for the value assigned in the
-                /// StaticMaterialSlots map; however, to ensure the method accounts for external changes in the
-                /// importer map, it's better to operate on the nominal values rather than the tool's own;
-                SerializedProperty materials = serializedObject.FindProperty("m_Materials");
-                for (int matIndex = 0; matIndex < materials.arraySize; matIndex++) {
-                    SerializedProperty materialID = materials.GetArrayElementAtIndex(matIndex);
-                    string name = materialID.FindPropertyRelative("name").stringValue;
-                    string type = materialID.FindPropertyRelative("type").stringValue;
-
-                    if (name == key) {
-                        string assembly = materialID.FindPropertyRelative("assembly").stringValue;
-                        bool lacksKey = true;
-                        for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
-                            SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
-                            string extName = extObject.FindPropertyRelative("first.name").stringValue;
-                            string extType = extObject.FindPropertyRelative("first.type").stringValue;
-
-                            if (extType == type && extName == name) {
-                                extObject.FindPropertyRelative("second").objectReferenceValue = newMaterial;
-                                lacksKey = false;
-                                break;
-                            }
-                        } if (lacksKey) {
-                            int lastIndex = extObjects.arraySize++;
-                            SerializedProperty newObj = extObjects.GetArrayElementAtIndex(lastIndex);
-                            newObj.FindPropertyRelative("first.name").stringValue = name;
-                            newObj.FindPropertyRelative("first.type").stringValue = type;
-                            newObj.FindPropertyRelative("first.assembly").stringValue = assembly;
-                            newObj.FindPropertyRelative("second").objectReferenceValue = newMaterial;
-                        } 
-                    }
-                }
-            } else {
-                for (int externalObjectIndex = 0; externalObjectIndex < extObjects.arraySize; externalObjectIndex++) {
-                    SerializedProperty extObject = extObjects.GetArrayElementAtIndex(externalObjectIndex);
-                    string extName = extObject.FindPropertyRelative("first.name").stringValue;
-                    if (extName == key) extObjects.DeleteArrayElementAtIndex(externalObjectIndex);
-                }
-            } serializedObject.ApplyModifiedPropertiesWithoutUndo();
-        }
-    }
-
-    /// <summary>
     /// Override of the Material Replacement method for simple internal use;
     /// </summary>
     /// <param name="key"> Name of the material binding to change; </param>
     /// <param name="newMaterial"> Material to place in the binding; </param>
-    public static void ReplacePersistentMaterial(string key, Material newMaterial) {
+    private void ReplacePersistentMaterial(string key, Material newMaterial) {
         ReplacePersistentMaterial(key, newMaterial, Model);
         StaticMaterialSlots[key] = newMaterial;
         Model.SaveAndReimport();
@@ -621,6 +576,30 @@ public static class ModelAssetLibraryModelReader {
 
     #endregion
 
+    #region | Animation Helpers |
+
+    /// <summary>
+    /// Fetches a reference to the Animation Editor class;
+    /// </summary>
+    public static void FetchAnimationEditor() {
+        /// Fetch a reference to the base Model Importer Editor class;
+        var editorType = typeof(Editor).Assembly.GetType("UnityEditor.ModelImporterEditor");
+        /// Perform a clean reconstruction of the Model Importer Editor;
+        if (AnimationEditor != null) Object.DestroyImmediate(AnimationEditor);
+        AnimationEditor = Editor.CreateEditor(Model, editorType);
+    }
+
+    /// <summary>
+    /// Cleans the Animation Editor, if it exists;
+    /// </summary>
+    public static void CleanAnimationEditor() {
+        if (AnimationEditor != null) {
+            Object.DestroyImmediate(AnimationEditor);
+        }
+    }
+
+    #endregion
+
     #region | Loading Helpers |
 
     /// <summary>
@@ -739,8 +718,7 @@ public static class ModelAssetLibraryModelReader {
         List<Material> materialList = new List<Material>();
         foreach (Material material in materials) {
             if (!materialList.Contains(material)) materialList.Add(material);
-        }
-        return materialList.ToArray();
+        } return materialList.ToArray();
     }
 
     #endregion
@@ -754,16 +732,26 @@ public static class ModelAssetLibraryModelReader {
     /// <param name="width"> Width of the Preview's Rect; </param>
     /// <param name="height"> Height of the Preview's Rect; </param>
     public static void DrawObjectPreviewEditor(GameObject gameObject, float width, float height) {
-        Rect rect = GUILayoutUtility.GetRect(width, height);
+        Rect rect = GUILayoutUtility.GetRect(width, height, GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true));
         if (ReaderObjectPreview == null) {
             if (gameObject == null) {
-                EditorUtils.DrawTexture(CustomTextures.noMeshPreview, width, height);
+                EditorUtils.DrawTexture(CustomTextures.noMeshPreview, width > 0 ? width : 128, height > 0 ? height : 128);
                 return;
             } ReaderObjectPreview = Editor.CreateEditor(gameObject);
         } else {
             ReaderObjectPreview.DrawPreview(rect);
-            if (ReaderObjectPreview != null && DummyGameObject) Object.DestroyImmediate(DummyGameObject);
         }
+    }
+
+    /// <summary>
+    /// An internal overload of the Object Preview method that cleans up the Dummy Object when needed;
+    /// </summary>
+    /// <param name="gameObject"> GameObject to show in the Preview; </param>
+    /// <param name="width"> Width of the Preview's Rect; </param>
+    /// <param name="height"> Height of the Preview's Rect; </param>
+    public static void DrawInternalObjectPreviewEditor(GameObject gameObject, float width, float height) {
+        DrawObjectPreviewEditor(gameObject, width, height);
+        if (DummyGameObject && ReaderObjectPreview != null) Object.DestroyImmediate(DummyGameObject);
     }
 
     /// <summary>
@@ -865,7 +853,7 @@ public static class ModelAssetLibraryModelReader {
     public static void UpdateObjectPreview() {
         CleanObjectPreview();
         if (SelectedMaterial != null && SelectedMaterial.gameObject != null) {
-            CreateDummyGameObject(SelectedMaterial.gameObject );
+            CreateDummyGameObject(SelectedMaterial.gameObject);
         }
     }
 
