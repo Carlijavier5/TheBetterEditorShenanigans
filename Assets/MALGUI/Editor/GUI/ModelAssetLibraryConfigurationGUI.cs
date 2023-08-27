@@ -10,9 +10,9 @@ public class ModelAssetLibraryConfigurationGUI : EditorWindow {
 
     [MenuItem("Tools/Model Asset Library Config")]
     public static void ShowWindow() {
-        ConfigGUI = GetWindow<ModelAssetLibraryConfigurationGUI>("Configuration", typeof(ModelAssetLibraryGUI));
-        if (HasOpenInstances<ModelAssetLibraryGUI>()) {
-            ModelAssetLibraryGUI.MainGUI.Close();
+        ConfigGUI = GetWindow<ModelAssetLibraryConfigurationGUI>("Configuration", typeof(ModelAssetDatabaseGUI));
+        if (HasOpenInstances<ModelAssetDatabaseGUI>()) {
+            ModelAssetDatabaseGUI.MainGUI.Close();
         }
     }
     
@@ -76,7 +76,7 @@ public class ModelAssetLibraryConfigurationGUI : EditorWindow {
                 GUILayout.FlexibleSpace();
                 if (configIsInvalid) GUI.enabled = false;
                 if (GUILayout.Button("Open Asset Library")) {
-                    ModelAssetLibraryGUI.ShowWindow(); 
+                    ModelAssetDatabaseGUI.ShowWindow(); 
                 } if (GUILayout.Button("Reload Asset Library")) {
                     Refresh();
                 } if (configIsInvalid) GUI.enabled = true;

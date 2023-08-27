@@ -4,9 +4,13 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using CJUtils;
-using ModelReader = ModelAssetLibraryModelReader;
+using MADUtils;
+using MADShaderUtility;
 
-public static class ModelAssetLibraryMaterialManager {
+/// <summary>
+/// 
+/// </summary>
+public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
 
     /// <summary> Distinct tabs separating Manager Functions; </summary>
     public enum SectionType {
@@ -15,7 +19,7 @@ public static class ModelAssetLibraryMaterialManager {
         Organizer,
         Replacer
     } /// <summary> Section currently selected in the GUI; </summary>
-    public static SectionType ActiveSection { get; private set; }
+    public SectionType ActiveSection { get; private set; }
 
     public class ManagedMaterialData {
         public string path;
@@ -26,45 +30,57 @@ public static class ModelAssetLibraryMaterialManager {
             this.material = material;
         }
     }
-    public static ManagedMaterialData EditedMaterial { get; private set; }
+    public ManagedMaterialData EditedMaterial { get; private set; }
 
-    private static GameObject previewObject;
+    private GameObject previewTarget;
+    private GenericPreview preview;
 
-    private static MaterialEditor materialEditor;
+    private MaterialEditorBundle materialEditorBundle;
 
-    private static List<Shader> shaderHistory;
+    private ModelAssetLibraryAssets customPrefabs;
 
-    private static ModelAssetLibraryAssets customPrefabs;
+    private Vector2 editorScroll;
 
     // Remove
     private static bool abbreviateEditMode;
 
     #region | Global Methods |
 
-    public static void FlushAssetData() {
+    protected override void InitializeData() {
         if (customPrefabs == null) {
             customPrefabs = ModelAssetLibraryConfigurationCore.ToolAssets;
-        } CleanMaterialEditor();
+        } 
+    }
+
+    public override void ResetData() {
+        CleanMaterialEditor();
+        CleanPreview();
+    }
+
+    /// <summary>
+    /// Dispose of unmanaged resources in the Material Manager;
+    /// </summary>
+    public override void FlushData() {
+        ResetData();
+        CleanPreviewTarget();
+    }
+
+    public override void SetSelectedAsset(string path) {
+        switch (ActiveSection) {
+            case SectionType.Editor:
+                SetEditedMaterial(path);
+                break;
+            case SectionType.Replacer:
+                break;
+        }
     }
 
     /// <summary>
     /// Sets the GUI's selected Manager Section;
     /// </summary>
     /// <param name="sectionType"> Type of the prospective section to show; </param>
-    private static void SetSelectedSection(SectionType sectionType) {
+    private void SetSelectedSection(SectionType sectionType) {
         ActiveSection = sectionType;
-    }
-
-    private static void AddToShaderHistory(Shader shader) {
-        if (shaderHistory == null) shaderHistory = new List<Shader>();
-        if (shaderHistory.Contains(shader)) {
-            shaderHistory.Remove(shader);
-            shaderHistory.Insert(0, shader);
-        } else {
-            int maxCount = 5;
-            if (shaderHistory.Count >= maxCount) shaderHistory.RemoveAt(maxCount - 1);
-            shaderHistory.Insert(0, shader);
-        }
     }
 
     #endregion
@@ -75,39 +91,40 @@ public static class ModelAssetLibraryMaterialManager {
     /// Set the currently edited material data;
     /// </summary>
     /// <param name="path"> Path of the Material to read; </param>
-    public static void SetEditedMaterial(string path) {
-        FlushAssetData();
+    public void SetEditedMaterial(string path) {
+        FlushData();
+        SetPreviewTarget(PreviewTarget.Sphere);
         Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
         EditedMaterial = new ManagedMaterialData(path, material);
     }
 
-    private static void ExtractMaterialEditor() {
-        if (materialEditor != null) Object.DestroyImmediate(materialEditor);
-        materialEditor = Editor.CreateEditor(EditedMaterial.material, typeof(MaterialEditor)) as MaterialEditor;
+    private void ExtractMaterialEditor() {
+        if (!ReferenceEquals(materialEditorBundle, null)) return;
+        materialEditorBundle = new MaterialEditorBundle(EditedMaterial.material);
     }
 
-    private static void DrawMaterialEditor() {
-        materialEditor.serializedObject.Update();
-        var changeDetection = typeof(MaterialEditor)
-                                .GetMethod("DetectShaderEditorNeedsUpdate", BindingFlags.NonPublic
-                                | BindingFlags.Instance);
-        changeDetection.Invoke(materialEditor, null);
-        MaterialProperty[] properties = MaterialEditor.GetMaterialProperties(new Object[] { EditedMaterial.material });
-        EditorGUI.BeginChangeCheck();
-        if (materialEditor.customShaderGUI != null) {
-            materialEditor.customShaderGUI.OnGUI(materialEditor, properties);
-        } else materialEditor.PropertiesDefaultGUI(properties);
-        if (EditorGUI.EndChangeCheck()) materialEditor.PropertiesChanged();
-    }
+    /// <summary>
+    /// A shorthand for drawing the extracted editor;
+    /// </summary>
+    private void DrawMaterialEditor() => materialEditorBundle.DrawEditor();
 
-    private static void CleanMaterialEditor() => Object.DestroyImmediate(materialEditor);
+    /// <summary>
+    /// Clean the material editor;
+    /// </summary>
+    private void CleanMaterialEditor() {
+        if (!ReferenceEquals(materialEditorBundle, null)) {
+            materialEditorBundle.CleanUp(ref materialEditorBundle);
+        }
+    }
 
     #endregion
+
+    #region | Tool GUI |
 
     /// <summary>
     /// Draws the toolbar for the Material Manager;
     /// </summary>
-    public static void DrawMaterialToolbar() {
+    public override void DrawToolbar() {
         foreach (SectionType sectionType in System.Enum.GetValues(typeof(SectionType))) {
             DrawMaterialToolbarButton(sectionType);
         }
@@ -117,7 +134,7 @@ public static class ModelAssetLibraryMaterialManager {
     /// Draws a button on the Material Toolbar;
     /// </summary>
     /// <param name="section"> Section to draw the button for; </param>
-    private static void DrawMaterialToolbarButton(SectionType section) {
+    private void DrawMaterialToolbarButton(SectionType section) {
         if (GUILayout.Button(System.Enum.GetName(typeof(SectionType), section), ActiveSection == section
                                        ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(140), GUILayout.ExpandWidth(true))) {
             SetSelectedSection(section);
@@ -127,7 +144,7 @@ public static class ModelAssetLibraryMaterialManager {
     /// <summary>
     /// Select a GUI display based on the currently active section;
     /// </summary>
-    public static void ShowSelectedSection() {
+    public override void ShowGUI() {
         switch (ActiveSection) {
             case SectionType.Editor:
                 ShowEditorSection();
@@ -144,100 +161,14 @@ public static class ModelAssetLibraryMaterialManager {
         }
     }
 
-    #region | Shader Selection Shenanigans |
-
-    /// <summary> Delegate for the local Shader Popup event set-up; </summary>
-    public static System.Action<Shader> OnShaderResult;
-
-    /// <summary>
-    /// Fetches the internal Advanced Popup used for shader selection in the Material Editor;
-    /// </summary>
-    /// <param name="position"> Rect used to draw the popup button; </param>
-    public static void ShowShaderSelectionAdvancedDropdown(Rect position) {
-        System.Type type = typeof(Editor).Assembly.GetType("UnityEditor.MaterialEditor+ShaderSelectionDropdown");
-        var dropDown = System.Activator.CreateInstance(type, args: new object[] { Shader.Find("Transparent/Diffuse"), (System.Action<object>) OnSelectedShaderPopup });
-        MethodInfo method = type.GetMethod("Show");
-        method.Invoke(dropDown, new object[] { position });
-    }
-
-    /// <summary>
-    /// Output method for the Shader Selection event set-up;
-    /// </summary>
-    /// <param name="objShaderName"> Object output from the Shader Selection event containing a shader name; </param>
-    private static void OnSelectedShaderPopup(object objShaderName) {
-        var shaderName = (string) objShaderName;
-        if (!string.IsNullOrEmpty(shaderName)) {
-            OnShaderResult?.Invoke(Shader.Find(shaderName));
-        }
-    }
-
-    /// <summary>
-    /// Draws a standard shader popup at the given Rect;
-    /// </summary>
-    /// <param name="position"> Rect where the popup will be drawn; </param>
-    /// <param name="shaderContent"> Text displayed on the popup button; </param>
-    /// <param name="shaderCallback"> Callback subscribing to the OnShaderResult event;
-    /// <br></br> NOTE: The callback should unsubscribe from the event to avoid unexpected behavior; </param>
-    public static void DrawDefaultShaderPopup(Rect position, GUIContent shaderContent, System.Action<Shader> shaderCallback) {
-        if (EditorGUI.DropdownButton(position, shaderContent, FocusType.Keyboard, EditorStyles.miniPullDown)) {
-            ShowShaderSelectionAdvancedDropdown(position);
-            OnShaderResult += shaderCallback;
-        }
-    }
-
-    private static void DrawShaderHistoryPopup(Rect position, System.Action<Shader> callback) {
-        if (EditorGUI.DropdownButton(position, new GUIContent(EditorUtils.FetchIcon("d_UnityEditor.AnimationWindow")),
-                                     FocusType.Keyboard, EditorStyles.miniPullDown)) {
-            ShowShaderHistoryAdvancedDropdown(position);
-            OnShaderResult += callback;
-        }
-    }
-
-    private static void ShowShaderHistoryAdvancedDropdown(Rect rect) {
-        ShaderHistoryAdvancedDropdown historyDropdown = new ShaderHistoryAdvancedDropdown(shaderHistory, OnSelectedShaderPopup);
-        historyDropdown.Show(rect);
-    }
-
-    private class ShaderHistoryAdvancedDropdown : AdvancedDropdown {
-
-        private System.Action<object> onSelectedShaderPopup;
-        private List<Shader> shaderList;
-
-        public ShaderHistoryAdvancedDropdown(List<Shader> shaderList, System.Action<object> onSelectedShaderPopup)
-                : base(new AdvancedDropdownState()) {
-            minimumSize = new Vector2(150, 0);
-            this.shaderList = shaderList;
-            this.onSelectedShaderPopup = onSelectedShaderPopup;
-        }
-
-        protected override AdvancedDropdownItem BuildRoot() {
-            AdvancedDropdownItem root;
-            if (shaderList == null || shaderList.Count == 0) {
-                root = new AdvancedDropdownItem("No Recent Shaders");
-            } else {
-                root = new AdvancedDropdownItem("Recent Shaders");
-                foreach (Shader shader in shaderList) {
-                    root.AddChild(new AdvancedDropdownItem(shader.name));
-                }
-            }
-            return root;
-        }
-
-        protected override void ItemSelected(AdvancedDropdownItem item) {
-            onSelectedShaderPopup(item.name);
-        }
-    }
-
-    #endregion
-
     #region | Editor Section |
 
-    private static void ShowEditorSection() {
+    private void ShowEditorSection() {
         if (EditedMaterial == null) {
             EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
         } else {
             float panelWidth = 620;
-            if (materialEditor == null) ExtractMaterialEditor();
+            ExtractMaterialEditor();
             using (new EditorGUILayout.HorizontalScope()) {
                 /// Editor side of the Editor Tab;
                 using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2))) {
@@ -252,11 +183,12 @@ public static class ModelAssetLibraryMaterialManager {
                                 Rect shaderPosition = EditorGUILayout.GetControlRect(GUILayout.MinWidth(105));
                                 GUIContent shaderContent = new GUIContent(EditedMaterial.material.shader == null
                                                                           ? "Missing Shader" : EditedMaterial.material.shader.name);
-                                DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
+                                MADShaderUtil.DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
                                 Rect historyPosition = EditorGUILayout.GetControlRect(GUILayout.Width(38));
-                                DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
+                                MADShaderUtil.DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
                             } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
-                                using (new EditorGUILayout.ScrollViewScope(Vector2.zero)) {
+                                using (var view = new EditorGUILayout.ScrollViewScope(editorScroll)) {
+                                    editorScroll = view.scrollPosition;
                                     DrawMaterialEditor();
                                 }
                             }
@@ -274,18 +206,23 @@ public static class ModelAssetLibraryMaterialManager {
         }
     }
 
-    private static void ReplaceMaterialShader(Shader shader) {
-        if (EditedMaterial != null && materialEditor != null) {
+    private void ReplaceMaterialShader(Shader shader) {
+        if (EditedMaterial != null && materialEditorBundle is not null) {
             if (EditedMaterial.material.shader == shader) return;
-            materialEditor.SetShader(shader);
-            AddToShaderHistory(shader);
+            materialEditorBundle.editor.SetShader(shader);
         } else Debug.LogWarning("Shader could not be set;");
     }
 
-    private static void DrawMaterialPreview() {
-        if (previewObject != null) {
-            ModelReader.DrawObjectPreviewEditor(previewObject, 1, 1);
-        } else EditorUtils.DrawScopeCenteredText("Select a Preview Object to display here;");
+    private void DrawMaterialPreview() {
+        Rect rect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+        if (preview is null) {
+            if (previewTarget != null) {
+                preview = new GenericPreview(previewTarget);
+            } else EditorUtils.DrawScopeCenteredText("Select a Preview Object");
+        } else {
+            preview.preview.DrawPreview(rect);
+            CleanPreviewTarget();
+        }
     }
 
     private enum PreviewTarget {
@@ -294,18 +231,19 @@ public static class ModelAssetLibraryMaterialManager {
         Other
     } private static PreviewTarget activeTarget;
 
-    private static void DrawMaterialPreviewOptions() {
+    private void DrawMaterialPreviewOptions() {
         GUILayout.Label("Preview Object:");
         PreviewTarget selection = (PreviewTarget) EditorGUILayout.EnumPopup(activeTarget);
         if (activeTarget != selection) SetPreviewTarget(selection);
         if (activeTarget == PreviewTarget.Other) {
-            GameObject potentialObject = EditorGUILayout.ObjectField(previewObject, typeof(GameObject), false) as GameObject;
-            if (potentialObject != previewObject) SetPreviewObject(potentialObject);
+            GameObject potentialObject = EditorGUILayout.ObjectField(previewTarget, typeof(GameObject), false) as GameObject;
+            if (potentialObject != previewTarget) SetPreviewObject(potentialObject);
         }
     }
 
-    private static void SetPreviewTarget(PreviewTarget selection) {
-        previewObject = null;
+    private void SetPreviewTarget(PreviewTarget selection) {
+        CleanPreview();
+        previewTarget = null;
         switch (selection) {
             case PreviewTarget.Sphere:
                 SetPreviewObject(customPrefabs.spherePrefab);
@@ -316,20 +254,26 @@ public static class ModelAssetLibraryMaterialManager {
         } activeTarget = selection;
     }
 
-    private static void SetPreviewObject(GameObject gameObject) {
-        previewObject = Object.Instantiate(gameObject);
-        Renderer[] renderers = previewObject.GetComponentsInChildren<Renderer>();
+    private void SetPreviewObject(GameObject gameObject) {
+        previewTarget = Instantiate(gameObject);
+        Renderer[] renderers = previewTarget.GetComponentsInChildren<Renderer>();
         foreach (Renderer renderer in renderers) {
             Material[] nArr = new Material[renderer.sharedMaterials.Length];
             for (int i = 0; i < renderer.sharedMaterials.Length; i++) {
                 //nArr[i] = material;
             } //renderer.sharedMaterials = nArr;
-        } ModelReader.CleanObjectPreview();
+        } CleanPreview();
     }
+
+    private void CleanPreview() {
+        if (!ReferenceEquals(preview, null)) preview.CleanUp(ref preview);
+    }
+
+    private void CleanPreviewTarget() => DestroyImmediate(previewTarget);
 
     #endregion
 
-    private static void ShowCreatorSection() {
+    private void ShowCreatorSection() {
         if (EditedMaterial == null) {
             EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
         } else {
@@ -384,11 +328,13 @@ public static class ModelAssetLibraryMaterialManager {
         }
     }
 
-    private static void ShowOrganizerSection() {
+    private void ShowOrganizerSection() {
 
     }
 
-    private static void ShowReplacerSection() {
+    private void ShowReplacerSection() {
 
     }
+
+    #endregion
 }

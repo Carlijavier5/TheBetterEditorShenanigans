@@ -2,24 +2,206 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
-using MainGUI = ModelAssetLibraryGUI;
-using ModelReader = ModelAssetLibraryModelReader;
-using static ModelAssetLibraryPrefabOrganizer;
+using MADUtils;
+using static ModelAssetDatabaseGUI;
 
-/// <summary> 
-/// Displays the interface of the Model Asset Library Reader; </summary>
-/// </summary>
-public static class ModelAssetLibraryPrefabOrganizerGUI {
+/// <summary> Component class of the Model Asset Library;
+/// <br></br> Organizes Prefab & Model Data in the GUI for DnD and categorization functions; </summary>
+public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
+
+    #region | Tool Core |
+
+    #region | Variables |
+
+    /// <summary> Data relevant to a folder category, namely, name and file contents; </summary>
+    private class FolderData {
+        /// <summary> Parsed name of this category; </summary>
+        public string name;
+        /// <summary> ID list of all prefabs filed under this category;
+        /// <br></br> Note that prefab categories is based on model category; </summary>
+        public List<string> prefabIDs;
+        /// <summary> ID list of all models filed under this category; </summary>
+        public List<string> modelIDs;
+
+        public FolderData(string name) {
+            this.name = name;
+            prefabIDs = new List<string>();
+            modelIDs = new List<string>();
+        }
+    } /// <summary> The folder path of the category selected in the GUI; </summary>
+    public string SelectedFolder { get; private set; }
+
+    /// <summary> A dictionary of dictionaries mapping a folder name to it's folder dictionary;
+    private Dictionary<string, FolderData> folderMap;
+
+    /// <summary> Data used to draw prefab cards; </summary>
+    private class PrefabCardData {
+        /// <summary> Root gameObject atop the prefab file hierarchy; </summary>
+        public GameObject rootObject;
+        /// <summary> Asset preview of the prefab; </summary>
+        public Texture2D preview;
+
+        public PrefabCardData(GameObject rootObject, Texture2D preview) {
+            this.rootObject = rootObject;
+            this.preview = preview;
+        }
+    } /// <summary> Dictionary mapping path keys to the corresponding Prefab Card Data; </summary>
+    private Dictionary<string, PrefabCardData> PrefabCardMap;
+
+    /// <summary> Dictionary mapping path keys to the root game object of a Model; </summary>
+    private Dictionary<string, GameObject> ModelCardMap;
+
+    /// <summary> Selection group that may be passed to the DragAndDrop class; </summary>
+    private List<Object> DragSelectionGroup;
+    /// <summary> Whether the mouse hovered over a button in the current frame; </summary>
+    private bool MouseOverButton;
+
+    /// <summary> Constraints for the number of prefabs shown; </summary>
+    private enum ScopeMode {
+        Folder,
+        All
+    } /// <summary> Scope Mode selected on the Prefab Organizer GUI; </summary> 
+    private ScopeMode scopeMode;
+
+    /// <summary> Sorting Modes for the Prefab Organizer; </summary>
+    private enum PrefabSortMode {
+        /// <summary> The prefabs cards will be drawn in alphabetical order; </summary>
+        Name,
+        /// <summary> The prefab cards will be grouped by parent model; </summary>
+        Model
+    } /// <summary> Sorting Mode selected on the Prefab Organizer GUI; </summary>
+    private PrefabSortMode SortMode;
+
+    /// <summary> Search String obtained from the Prefab Organizer Search Bar; </summary>
+    private string SearchString;
+
+    /// <summary> List mapping the name of each prefab to their IDs; </summary>
+    private List<KeyValuePair<string, string>> prefabNameMapList;
+    /// <summary> List holding IDs filtered using the current Search String, if any; </summary>
+    private List<string> SearchResultList;
+
+    #endregion
+
+    #region | Initialization & Cleanup |
+
+    protected override void InitializeData() {
+        if (folderMap == null) BuildFolderMap();
+        prefabNameMapList = new List<KeyValuePair<string, string>>();
+    }
+
+    public override void ResetData() {
+        
+    }
+
+    /// <summary>
+    /// Unloads all static data contained in the tool;
+    /// </summary>
+    public override void FlushData() {
+        SelectedFolder = null;
+        DragSelectionGroup = null;
+        SortMode = 0;
+
+        SearchString = null;
+        prefabNameMapList = null;
+        SearchResultList = null;
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Creates a map of folders path and the data they contain that's relevant to the tool;
+    /// </summary>
+    private void BuildFolderMap() {
+        Dictionary<string, ModelAssetLibrary.FolderData> extFolderMap = ModelAssetLibrary.FolderMap;
+        if (extFolderMap == null) extFolderMap = ModelAssetLibrary.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
+        folderMap = new Dictionary<string, FolderData>();
+        foreach (KeyValuePair<string, ModelAssetLibrary.FolderData> kvp in extFolderMap) {
+            folderMap[kvp.Key] = new FolderData(kvp.Value.name);
+            foreach (string modelPath in kvp.Value.models) {
+                folderMap[kvp.Key].modelIDs.Add(AssetDatabase.AssetPathToGUID(modelPath));
+            }
+            foreach (string modelID in folderMap[kvp.Key].modelIDs) {
+                folderMap[kvp.Key].prefabIDs.AddRange(ModelAssetLibrary.ModelDataDict[modelID].prefabIDList);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets the selected folder path;
+    /// </summary>
+    /// <param name="path"> Folder path to select; </param>
+    public override void SetSelectedAsset(string path) {
+        DragSelectionGroup = new List<Object>();
+        LoadCategoryData(path);
+        SelectedFolder = path;
+    }
+
+    /// <summary>
+    /// Loads all relevant static data;
+    /// </summary>
+    /// <param name="path"> Category path to load; </param>
+    private void LoadCategoryData(string path) {
+        foreach (string prefabID in folderMap[path].prefabIDs) {
+            if (!PrefabCardMap.ContainsKey(prefabID)) {
+                var prefabData = ModelAssetLibrary.PrefabDataDict[prefabID];
+                string assetPath = prefabData.path;
+                GameObject rootObject = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                Texture2D preview = AssetPreview.GetAssetPreview(rootObject);
+                while (preview == null) {
+                    preview = AssetPreview.GetAssetPreview(rootObject);
+                } PrefabCardMap[prefabID] = new PrefabCardData(rootObject, preview);
+            } string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
+            prefabNameMapList.Add(new KeyValuePair<string, string>(name, prefabID));
+        } DragSelectionGroup = new List<Object>();
+        foreach (string modelID in folderMap[path].modelIDs) {
+            string modelPath = ModelAssetLibrary.ModelDataDict[modelID].path;
+            ModelCardMap[modelID] = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+        }
+    }
+
+    /// <summary>
+    /// Sets the current prefab sort mode;
+    /// <br></br> Honestly, why did I even write this method;
+    /// </summary>
+    /// <param name="sortMode"> New sort mode; </param>
+    private void SetSortMode(PrefabSortMode sortMode) {
+        /// Originally I did a thing or two here, but turns out I don't want to anymore;
+        /// So I'll leave this method here anyways <3
+        SortMode = sortMode;
+    }
+
+    /// <summary>
+    /// Updates the current Search String to a new value;
+    /// <br></br> Discards the previous results, if any;
+    /// </summary>
+    /// <param name="searchString"> New search string; </param>
+    public void SetSearchString(string searchString) {
+        SearchResultList = null;
+        SearchString = searchString;
+    }
+
+    /// <summary>
+    /// Process the Search Results upon request;
+    /// </summary>
+    private void ProcessSearchList() {
+        List<KeyValuePair<string, string>> processList = prefabNameMapList.FindAll((kvp) => kvp.Key.Contains(SearchString));
+        SearchResultList = new List<string>();
+        foreach (KeyValuePair<string, string> kvp in processList) SearchResultList.Add(kvp.Value);
+    }
+
+    #endregion
+
+    #region | Tool GUI |
 
     private static Vector2 modelSortScroll;
 
     /// <summary>
     /// Draws the toolbar for the Prefab Organizer;
     /// </summary>
-    public static void DrawPrefabOrganizerToolbar() {
+    public override void DrawToolbar() {
         GUI.enabled = false;
         using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbarButton)) {
-            if (SelectedCategory != null) GUI.enabled = true;
+            if (SelectedFolder != null) GUI.enabled = true;
             GUILayout.Label("Sort By:", new GUIStyle(UIStyles.ToolbarText) { margin = new RectOffset(0, 20, 1, 0) }, GUILayout.Width(110));
         } if (GUILayout.Button("Name", SortMode == PrefabSortMode.Name
                                        ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(140), GUILayout.ExpandWidth(true))) {
@@ -36,30 +218,30 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// <summary>
     /// Entry point to display the Prefab Organizer Data;
     /// </summary>
-    public static void ShowSelectedCategory() {
+    public override void ShowGUI() {
 
-        if (SelectedCategory == null) {
-            EditorUtils.DrawScopeCenteredText("Prefabs stored in the Selected Category will be displayed here;");
+        if (SelectedFolder == null) {
+            EditorUtils.DrawScopeCenteredText("Prefabs stored in the Selected Folder will be displayed here;");
             return;
         }
 
         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
-            GUILayout.Label(SelectedCategory.IsolatePathEnd("\\/"), UIStyles.CenteredLabelBold);
+            GUILayout.Label(SelectedFolder.IsolatePathEnd("\\/"), UIStyles.CenteredLabelBold);
         }
 
         using (new EditorGUILayout.HorizontalScope()) {
             if (string.IsNullOrWhiteSpace(SearchString)) {
                 switch (SortMode) {
                     case PrefabSortMode.Name:
-                        DrawPrefabCards(CategoryMap[SelectedCategory].prefabIDs, 
-                                        "There are no prefabs under this category;");
+                        DrawPrefabCards(folderMap[SelectedFolder].prefabIDs, 
+                                        "There are no prefabs under this folder;");
                         break;
                     case PrefabSortMode.Model:
                         using (var view = new EditorGUILayout.ScrollViewScope(modelSortScroll,
                                                                                 GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true))) {
                             modelSortScroll = view.scrollPosition;
                             using (new EditorGUILayout.HorizontalScope()) {
-                                foreach (string modelID in CategoryMap[SelectedCategory].modelIDs) DrawModelColumn(modelID);
+                                foreach (string modelID in folderMap[SelectedFolder].modelIDs) DrawModelColumn(modelID);
                             }
                         } break;
                 }
@@ -70,7 +252,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// <summary>
     /// Draws prefab cards whose name matches the Search Query in any way;
     /// </summary>
-    private static void DrawSearchCards() {
+    private void DrawSearchCards() {
         if (SearchResultList == null) ProcessSearchList();
         DrawPrefabCards(SearchResultList, "No matching results were found;");
     }
@@ -78,7 +260,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// <summary>
     /// Draws all prefab cards as stipulated by the default sort mode;
     /// </summary>
-    private static void DrawPrefabCards(List<string> prefabIDs, string noPrefabsMessage) {
+    private void DrawPrefabCards(List<string> prefabIDs, string noPrefabsMessage) {
         if (prefabIDs.Count == 0) {
             GUILayout.FlexibleSpace();
             using (new EditorGUILayout.VerticalScope()) {
@@ -106,7 +288,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// Draws a Prefab Card containing buttons;
     /// </summary>
     /// <param name="prefabID"> ID of the prefab to draw the card for; </param>
-    private static void DrawPrefabCard(string prefabID) {
+    private void DrawPrefabCard(string prefabID) {
         PrefabCardData data = PrefabCardMap[prefabID];
         bool objectInSelection = DragSelectionGroup.Contains(data.rootObject);
         if (objectInSelection) GUI.color = UIColors.DarkBlue;
@@ -119,7 +301,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
                 EditorUtils.DrawWindowBoxLabel(ModelAssetLibrary.PrefabDataDict[prefabID].name);
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                     if (GUILayout.Button("Open Library", GUILayout.MaxHeight(24))) {
-                        SwitchToLibrary(ModelAssetLibrary.PrefabDataDict[prefabID].modelID);
+                        MainGUI.SwitchToLibrary(ModelAssetLibrary.PrefabDataDict[prefabID].modelID);
                     } using (new EditorGUILayout.HorizontalScope()) {
                         if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_PrefabModel On Icon")), GUILayout.MaxWidth(45), GUILayout.MaxHeight(24))) {
                             EditorUtils.PingObject(AssetImporter.GetAtPath(ModelAssetLibrary
@@ -139,7 +321,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// </summary>
     /// <param name="prefabID"> ID of the prefab; </param>
     /// <param name="objectInSelection"> Whether the prefab is in the current Drag & Drop Selection Group; </param>
-    private static void DrawDragAndDropPreview(string prefabID, bool objectInSelection) {
+    private void DrawDragAndDropPreview(string prefabID, bool objectInSelection) {
         PrefabCardData data = PrefabCardMap[prefabID];
         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
             Rect buttonRect = GUILayoutUtility.GetRect(80, 80, GUILayout.ExpandWidth(false));
@@ -164,7 +346,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
         }
     }
 
-    private static void DrawDragAndDropPreviewModel(string modelID) {
+    private void DrawDragAndDropPreviewModel(string modelID) {
         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
             Rect buttonRect = GUILayoutUtility.GetRect(50, 50, GUILayout.ExpandWidth(false));
             if (buttonRect.Contains(Event.current.mousePosition)) {
@@ -183,7 +365,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// <summary>
     /// Whether a Drag & Drop Selection Group wipe may happen at the end of the frame;
     /// </summary>
-    private static void DeselectionCheck() {
+    private void DeselectionCheck() {
         if (!MouseOverButton && Event.current.type == EventType.MouseDown && !Event.current.shift
             && Event.current.button == 0 && DragSelectionGroup.Count > 0) DragSelectionGroup.Clear();
         MouseOverButton = false;
@@ -193,7 +375,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
     /// Draw a List of Prefab Cards under a Model Header as stipulated by the model sort mode;
     /// </summary>
     /// <param name="modelID"> ID of the model owning the column; </param>
-    private static void DrawModelColumn(string modelID) {
+    private void DrawModelColumn(string modelID) {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(210))) {
             using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                 using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox, GUILayout.Width(210))) {
@@ -219,7 +401,7 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
                         GUILayout.FlexibleSpace();
                         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                             GUILayout.Label("No Prefab Variants", UIStyles.CenteredLabelBold);
-                            if (GUILayout.Button("Open Library")) SwitchToLibrary(modelID);
+                            if (GUILayout.Button("Open Library")) MainGUI.SwitchToLibrary(modelID);
                         } GUILayout.FlexibleSpace();
                     }
                 } foreach (string prefabID in modelIDList) {
@@ -233,14 +415,5 @@ public static class ModelAssetLibraryPrefabOrganizerGUI {
         }
     }
 
-    /// <summary>
-    /// Switch to the Prefabs Section of the Model Reader on the corresponding model;
-    /// </summary>
-    /// <param name="modelID"> ID of the model used to redirect the GUI; </param>
-    private static void SwitchToLibrary(string modelID) {
-        MainGUI.SwitchActiveTool(MainGUI.ToolMode.ModelReader);
-        ModelReader.SetSelectedModel(ModelAssetLibrary.ModelDataDict[modelID].path);
-        ModelReader.SetSelectedSection(ModelReader.SectionType.Prefabs);
-        GUIUtility.ExitGUI();
-    }
+    #endregion
 }

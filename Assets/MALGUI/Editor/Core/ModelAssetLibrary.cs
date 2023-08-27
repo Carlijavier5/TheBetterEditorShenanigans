@@ -81,6 +81,16 @@ public static class ModelAssetLibrary {
     } /// <summary> Maps a Material GUID to its file path and name; </summary>
     public static Dictionary<string, MaterialData> MaterialDataDict { get; private set; }
 
+    /// <summary> Subfolder and File Paths + Foldout Scope of a folder in the model hierarchy; </summary>
+    public class FolderData {
+        public string name;
+        public List<string> subfolders;
+        public List<string> models;
+        public List<string> materials;
+        public bool foldout = true;
+    } /// <summary> Dictionary that maps each folder path in the target hierarchy to its contents; </summary>
+    public static Dictionary<string, FolderData> FolderMap { get; private set; }
+
     /// <summary> Registry options for the FindAssets() method; </summary>
     public enum RegistryMode {
         /// <summary> No assets will be registered while searching the folders; </summary>
@@ -106,6 +116,7 @@ public static class ModelAssetLibrary {
             && ModelFileExtensions.Length > 0) {
             ReloadModelEntries();
             ReloadPrefabEntries();
+            FolderMap = BuildFolderMap(RootAssetPath, false);
         }
     }
 
@@ -159,6 +170,31 @@ public static class ModelAssetLibrary {
         foreach (string subfolder in subfolders) {
             ReloadPrefabEntries(subfolder);
         }
+    }
+
+    /// <summary>
+    /// Iterates through the directories in the target path to build a dictionary tree;
+    /// <br></br> This method is recursive and will traverse the full depth of the target folder hierarchy;
+    /// </summary>
+    /// <param name="path"> The path to the root folder where the search should begin; </param>
+    /// <param name="externalCall"> Whether the function is called outside of the Hierarchy Builder; </param>
+    /// <param name="newFolderMap"> Recursive variable; </param>
+    public static Dictionary<string, FolderData> BuildFolderMap(string path, bool externalCall = true, Dictionary<string, FolderData> newFolderMap = null) {
+        path = path.Replace('\\', '/');
+        if (newFolderMap == null) newFolderMap = new Dictionary<string, FolderData>();
+        newFolderMap[path] = new FolderData();
+        List<string> subfolders = new List<string>(AssetDatabase.GetSubFolders(path));
+        List<string> models = new List<string>(FindAssets(path, ModelAssetLibrary.ModelFileExtensions));
+        List<string> materials = new List<string>(FindAssets(path, new string[] { "MAT" }));
+        for (int i = 0; i < models.Count; i++) models[i] = models[i].Replace('\\', '/');
+        FolderData folderEntry = newFolderMap[path];
+        folderEntry.name = path.IsolatePathEnd("\\/");
+        folderEntry.subfolders = subfolders;
+        folderEntry.models = models;
+        folderEntry.materials = materials;
+        foreach (string subfolder in subfolders) {
+            BuildFolderMap(subfolder, externalCall, newFolderMap);
+        } return newFolderMap;
     }
 
     #endregion

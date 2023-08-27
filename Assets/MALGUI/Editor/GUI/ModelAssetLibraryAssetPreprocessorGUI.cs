@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using CJUtils;
-using ModelReader = ModelAssetLibraryModelReader;
-using MaterialManager = ModelAssetLibraryMaterialManager;
-using static ModelAssetLibraryAssetPreprocessor;
+using MADUtils;
+using MADShaderUtility;
+using static ModelAssetDatabaseAssetPreprocessor;
 
 /// <summary>
 /// User interface for the Asset Library Preprocessor;
@@ -62,7 +62,6 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     private Vector2 materialSlotScroll;
 
     void OnEnable() {
-        ModelReader.CleanObjectPreview();
         if (Options == null) return;
         if (Options.model != null) {
             modelGO = AssetDatabase.LoadAssetAtPath<GameObject>(Options.model.assetPath);
@@ -71,7 +70,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     void OnDisable() {
-        ModelReader.CleanObjectPreview();
+        CleanPreview();
         if (Options != null) FlushImportData();
 
         tempMaterials = null;
@@ -146,7 +145,8 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                                 GUI.color = Color.white;
                                 GUIContent shaderContent = new GUIContent(noShaderSelected ? "No Shader Selected" : Options.shader.name);
                                 DrawShaderPopup(shaderContent, null);
-                                if (!Options.useSingleShader) GUI.enabled = true;
+                                DrawShaderHistoryPopup(null);
+                                GUI.enabled = true;
                             }
                         }
                     } DrawMaterialSettings();
@@ -184,9 +184,9 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                            ModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                            DrawPreview(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
                             if (GUILayout.Button("Expanded Preview")) {
-                                ModelAssetLibraryPreviewExpanded.ShowPreviewWindow(modelGO);
+                                ModelAssetDatabasePreviewExpanded.ShowPreviewWindow(modelGO);
                             }
                         }
                     } DrawMaterialSlot(SingleKey, MaterialOverrideMap[SingleKey], 0);
@@ -196,11 +196,11 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                         using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                             using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
                                 GUILayout.Label("Preview", UIStyles.CenteredLabel);
-                                ModelReader.DrawObjectPreviewEditor(modelGO, 96, 112);
+                                DrawPreview(GUILayout.Width(96), GUILayout.Height(112));
                                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { richText = true }; 
                                 buttonStyle.fontSize--;
                                 if (GUILayout.Button("<b>Expand Preview</b>", buttonStyle)) {
-                                    ModelAssetLibraryPreviewExpanded.ShowPreviewWindow(modelGO);
+                                    ModelAssetDatabasePreviewExpanded.ShowPreviewWindow(modelGO);
                                 }
                             } using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.MaxWidth(96))) {
                                 EditorUtils.DrawSeparatorLines("New Materials", true);
@@ -219,6 +219,11 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
                     } break;
             }
         } else GUILayout.Label("Something went wrong here, ask Carlos or something;", UIStyles.CenteredLabelBold);
+    }
+
+    private void DrawPreview(params GUILayoutOption[] options) {
+        if (preview is null) preview = new GenericPreview(modelGO);
+        preview.DrawPreview(options);
     }
 
     /// <summary>
@@ -345,7 +350,13 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     private void DrawShaderPopup(GUIContent shaderContent, string key) {
         shaderKey = key;
         Rect position = EditorGUILayout.GetControlRect(GUILayout.MinWidth(135));
-        MaterialManager.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
+        MADShaderUtil.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
+    }
+
+    private void DrawShaderHistoryPopup(string key) {
+        shaderKey = key;
+        Rect position = EditorGUILayout.GetControlRect(GUILayout.Width(36));
+        MADShaderUtil.DrawShaderHistoryPopup(position, ApplyShaderResult);
     }
 
     /// <summary>
@@ -356,6 +367,5 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
         if (shaderKey == null) Options.shader = shader;
         else MaterialOverrideMap[shaderKey].shader = shader;
         shaderKey = null;
-        MaterialManager.OnShaderResult -= ApplyShaderResult;
     }
 }

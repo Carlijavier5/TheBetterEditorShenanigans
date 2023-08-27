@@ -1,10 +1,7 @@
-using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using Reader = ModelAssetLibraryModelReader;
-using HierarchyBuilder = ModelAssetLibraryHierarchyBuilder;
-using MaterialManager = ModelAssetLibraryMaterialManager;
+using MADUtils;
 using TempManager = ModelAssetLibraryTempMaterialManager;
 using ExtManager = ModelAssetLibraryExtManager;
 using ExtData = ModelAssetLibraryExtData;
@@ -12,7 +9,7 @@ using ExtData = ModelAssetLibraryExtData;
 /// <summary>
 /// Processes some features of an imported model and allows for further customization of such Model;
 /// </summary>
-public static class ModelAssetLibraryAssetPreprocessor {
+public static class ModelAssetDatabaseAssetPreprocessor {
 
     #region | Core Import Data |
 
@@ -80,6 +77,8 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// <summary> Original material map used by the Model to reimport; </summary>
     private static Dictionary<string, Material> originalInternalMap;
 
+    public static GenericPreview preview;
+
     #endregion
 
     #region | Core Import Functions |
@@ -104,10 +103,10 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// <br></br> The implementation is too limited, so I'd really like to change it in the future;
     /// </summary>
     private static void FetchFolderPaths() {
-        var folderMap = HierarchyBuilder.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
+        var folderMap = ModelAssetLibrary.BuildFolderMap(ModelAssetLibrary.RootAssetPath);
         FolderPaths = new string[folderMap.Keys.Count + 1];
         int i = 1;
-        foreach (KeyValuePair<string, HierarchyBuilder.FolderData> kvp in folderMap) {
+        foreach (KeyValuePair<string, ModelAssetLibrary.FolderData> kvp in folderMap) {
             FolderPaths[i] = kvp.Key;
             i++;
         } FolderPaths[0] = "None";
@@ -177,7 +176,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// </summary>
     /// <param name="model"> Model to reimport; </param>
     public static void ProcessLibraryMaterialData(ModelImporter model) {
-        originalInternalMap = Reader.LoadInternalMaterialMap(model);
+        originalInternalMap = MaterialUtils.LoadInternalMaterialMap(model);
         MaterialOverrideMap = new Dictionary<string, MaterialData>();
         foreach (KeyValuePair<string, Material> kvp in originalInternalMap) {
             MaterialOverrideMap[kvp.Key] = new MaterialData() { name = kvp.Key };
@@ -211,10 +210,10 @@ public static class ModelAssetLibraryAssetPreprocessor {
         /// Note that any key can reserve a single material at any given time;
         /// Multiple reserves are not an issue;
 
-        Reader.ReplacePersistentMaterial(key, material, Options.model);
+        MaterialUtils.ReplacePersistentMaterial(key, material, Options.model);
         if (reimport) {
             Options.model.SaveAndReimport();
-            Reader.CleanObjectPreview();
+            CleanPreview();
         }
     }
 
@@ -245,7 +244,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
                         ReplacePersistentMaterial(kvp.Key, TempMaterialMap[kvp.Key], false);
                     } else ReplacePersistentMaterial(kvp.Key, originalInternalMap[kvp.Key], false);
                 } Options.model.SaveAndReimport();
-                Reader.CleanObjectPreview();
+                CleanPreview();
                 break;
         } Options.materialOverrideMode = mom;
     }
@@ -303,7 +302,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
     /// </summary>
     /// <returns> True if the name is valid; </returns>
     public static bool ValidateMaterialName(string name) {
-        return Reader.ValidateFilename(TempManager.TempMaterialPath + "/" + name + ".mat", name) == 0;
+        return GeneralUtils.ValidateFilename(TempManager.TempMaterialPath + "/" + name + ".mat", name) == 0;
     }
 
     /// <summary>
@@ -357,7 +356,7 @@ public static class ModelAssetLibraryAssetPreprocessor {
             if (newMaterial == null) ReplacePersistentMaterial(kvp.Key, kvp.Value, false);
             else ReplacePersistentMaterial(kvp.Key, newMaterial, false);
         } Options.model.SaveAndReimport();
-        Reader.CleanObjectPreview();
+        CleanPreview();
     }
 
     /// <summary>
@@ -370,6 +369,10 @@ public static class ModelAssetLibraryAssetPreprocessor {
         if (originalInternalMap.ContainsKey(key)) ReplacePersistentMaterial(key, originalInternalMap[key]);
         else ReplaceGlobalMapping();
         PreservedMaterialMap.Remove(key);
+    }
+
+    public static void CleanPreview() {
+        if (preview is not null) preview.CleanUp(ref preview);
     }
 
     #endregion

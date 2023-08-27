@@ -1,15 +1,774 @@
 using System.Collections.Generic;
-using UnityEngine;
+using System.IO;
 using UnityEditor;
+using UnityEngine;
+using MADUtils;
 using CJUtils;
-using MainGUI = ModelAssetLibraryGUI;
-using PrefabOrganizer = ModelAssetLibraryPrefabOrganizer;
-using static ModelAssetLibraryModelReader;
+using ExtData = ModelAssetLibraryExtData;
+using static ModelAssetDatabaseGUI;
 
-/// <summary> 
-/// Displays the interface of the Model Asset Library Reader; </summary>
-/// </summary>
-public static class ModelAssetLibraryModelReaderGUI {
+/// <summary> Component class of the Model Asset Library;
+/// <br></br> Reads asset data and displays the corresponding properties in the GUI; </summary>
+public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
+
+    #region | Tool Core |
+
+    #region | Variables |
+
+    #region | General Section Varaibles |
+
+    /// <summary> Component Tools separated by General purpose; </summary>
+    public enum SectionType {
+        None,
+        Model,
+        Meshes,
+        Materials,
+        Prefabs,
+        Rig,
+        Animations,
+        Skeleton
+    } /// <summary> Section currently selected in the GUI; </summary>
+    private SectionType ActiveSection;
+
+    /// <summary> Potential Model content limitations; </summary>
+    public enum AssetMode {
+        Model,
+        Animation
+    } /// <summary> Asset Mode currently selected in the GUI; </summary>
+    private AssetMode ActiveAssetMode;
+
+    /// <summary> Model path currently selected in the GUI; </summary>
+    private string SelectedModel;
+
+    #endregion
+
+    #region | General Reference Variables |
+
+    /// <summary> Reference to the model importer file; </summary>
+    public ModelImporter Model { get; private set; }
+    /// <summary> GUID of the currently selected model; </summary>
+    private string ModelID;
+    /// <summary> Ext Data of the selected mode; </summary>
+    private ExtData ModelExtData;
+    /// <summary> Reference to the prefab, if any, contained in the model; </summary>
+    private GameObject Prefab;
+    /// <summary> Reference to the Custom Icons Scriptable Object; </summary>
+    private ModelAssetLibraryAssets CustomTextures;
+
+    /// <summary> Disposable GameObject instantiated to showcase GUI changes non-invasively; </summary>
+    private GameObject DummyGameObject;
+
+    #endregion
+
+    #region | Editor Variables |
+
+    /// <summary> A disposable Editor class embedded in the Editor Window to show a preview of an instantiable asset; </summary>
+    private GenericPreview objectPreview;
+
+    /// <summary> A disposable Editor class embedded in the Editor Window to show a preview of a mesh asset; </summary>
+    private MeshPreview ReaderMeshPreview;
+
+    /// <summary> An Editor Window displayed when a material asset is selected; </summary>
+    private ModelAssetDatabaseMaterialInspector MaterialInspectorWindow;
+
+    /// <summary> An Editor Window displaying useful information about staging changes in the Materials Section; </summary>
+    private ModelAssetDatabaseMaterialHelper MaterialHelperWindow;
+
+    #endregion
+
+    #region | Model Section Variables |
+
+    /// <summary> The sum of all the vertices in a composite model; </summary>
+    private int GlobalVertexCount;
+    /// <summary> The sum of all the triangles in a composite model; </summary>
+    private int GlobalTriangleCount;
+    /// <summary> Directory information on the target file; </summary>
+    private FileInfo FileInfo;
+
+    #endregion
+
+    #region | Mesh Section Variables |
+
+    /// <summary> Mesh preview dictionary; </summary>
+    private Dictionary<Renderer, Texture2D> MeshPreviewDict;
+
+    /// <summary> Struct to store renderers with filters and avoid unnecesary GetComponent() calls; </summary>
+    private struct MeshRendererPair {
+        public MeshFilter filter;
+        public Renderer renderer;
+        public MeshRendererPair(MeshFilter filter, Renderer renderer) {
+            this.filter = filter;
+            this.renderer = renderer;
+        }
+        public override bool Equals(object obj) {
+            if (obj is MeshRendererPair) {
+                MeshRendererPair mrp = (MeshRendererPair) obj;
+                return mrp.filter == filter && mrp.renderer == renderer;
+            } return false;
+        }
+        public override int GetHashCode() {
+            return System.HashCode.Combine(filter, renderer);
+        }
+    } /// <summary> List of all the mesh renderers and mesh filters contained in the model </summary>
+    private List<MeshRendererPair> MeshRenderers;
+
+    /// <summary> Class that bundles properties relevant to the selected mesh for quick handling and disposal; </summary>
+    private class SelectedMeshProperties {
+        /// <summary> Mesh selected in the Editor Window; </summary>
+        public Mesh mesh;
+        /// <summary> Gameobject holding the mesh selected in the Editor Window </summary>
+        public GameObject gameObject;
+        /// <summary> Type of the renderer holding the mesh; </summary>
+        public Renderer renderer;
+        public Texture2D preview;
+
+        public SelectedMeshProperties(Mesh mesh, GameObject gameObject, Renderer renderer) {
+            this.mesh = mesh;
+            this.gameObject = gameObject;
+            this.renderer = renderer;
+        }
+    } /// <summary> Relevant properties of the Mesh selected in the GUI; </summary>
+    private SelectedMeshProperties SelectedMesh;
+    /// <summary> Index of the selected SubMesh in the GUI (+1); </summary>
+    private int SelectedSubmeshIndex;
+
+    /// <summary> Vertex count of a single mesh; </summary>
+    private int LocalVertexCount;
+
+    /// <summary> Triangle count of a single mesh; </summary>
+    private int LocalTriangleCount;
+
+    #endregion
+
+    #region | Material Section Variables |
+
+    /// <summary> Dictionary mapping each material to the renderers it is available in; </summary>
+    private Dictionary<Material, List<MeshRendererPair>> materialDict;
+
+    /// <summary> Dictionary mapping the current material slot selection; </summary>
+    public Dictionary<string, Material> StaticMaterialSlots { get; private set; }
+
+    /// <summary> Dictionary mapping the original material slot selection; </summary>
+    public Dictionary<string, Material> OriginalMaterialSlots { get; private set; }
+
+    /// <summary> Whether the current slot selection differs from the old selection; </summary>
+    private bool hasStaticSlotChanges;
+
+    /// <summary> Class that bundles properties relevant to the selected material for quick handling and disposal; </summary>
+    private class SelectedMaterialProperties {
+        public Material material;
+        public GameObject gameObject;
+        public Renderer renderer;
+
+        public SelectedMaterialProperties(Material material, GameObject gameObject, Renderer renderer) {
+            this.material = material;
+            this.gameObject = gameObject;
+            this.renderer = renderer;
+        }
+
+        public SelectedMaterialProperties(Material material) {
+            this.material = material;
+            gameObject = null;
+            renderer = null;
+        }
+
+        public SelectedMaterialProperties(GameObject gameObject, Renderer renderer) {
+            material = null;
+            this.gameObject = gameObject;
+            this.renderer = renderer;
+        }
+    } /// <summary> Relevant properties of the material selected in the GUI; </summary>
+    private SelectedMaterialProperties selectedMaterial;
+
+    #endregion
+
+    #region | Prefab Section Variables |
+
+    /// <summary> The prefab name currently written in the naming Text Field; </summary>
+    private string prefabName;
+
+    /// <summary> Class containing relevant Prefab Variant information; </summary>
+    private class PrefabVariantData {
+        public string guid;
+        public string name;
+        public PrefabVariantData(string guid, string name) {
+            this.guid = guid;
+            this.name = name;
+        }
+    } /// <summary> A list containing all relevant prefab info, to avoid unnecessary operations every frame; </summary>
+    private List<PrefabVariantData> PrefabVariantInfo;
+
+    /// <summary> Current state of the name validation process; </summary>
+    private GeneralUtils.InvalidNameCondition NameCondition;
+
+    /// <summary> Static log of recent prefab registry changes; </summary>
+    private Stack<string> PrefabActionLog;
+
+    #endregion
+
+    #region | Animation Variables |
+
+    /// <summary> Internal editor used to embed the Animation Clip Editor from the Model Importer; </summary>
+    private Editor AnimationEditor;
+
+    #endregion
+
+    #endregion
+
+    #region | Initialization & Cleanup |
+
+    protected override void InitializeData() {
+        if (CustomTextures == null) CustomTextures = ModelAssetLibraryConfigurationCore.ToolAssets;
+        /// Materials Section Variables;
+        materialDict = new Dictionary<Material, List<MeshRendererPair>>();
+        /// Meshes Section Variables;
+        MeshRenderers = new List<MeshRendererPair>();
+        /// Prefab Section Variables;
+        PrefabActionLog = new Stack<string>();
+    }
+
+    /// <summary>
+    /// Resets variables whose contents depend on a specific section;
+    /// </summary>
+    public override void ResetData() {
+        CleanObjectPreview();
+        CleanMeshPreview();
+        CleanAnimationEditor();
+        CloseMaterialInspectorWindow();
+        CloseMaterialHelperWindow();
+
+        /// Meshes Section Dependencies;
+        if (SelectedMesh != null) SelectedMesh = null;
+        if (SelectedSubmeshIndex != 0) SelectedSubmeshIndex = 0;
+        /// Materials Section Dependencies;
+        if (selectedMaterial != null) selectedMaterial = null;
+        if (hasStaticSlotChanges) {
+            if (ModelAssetLibraryModalMaterialChanges.ConfirmMaterialChanges()) {
+                AssignMaterialsPersistently();
+            } else {
+                ResetSlotChanges();
+            } try {
+                GUIUtility.ExitGUI();
+            } catch (ExitGUIException) {
+                /// We good :)
+            }
+        } RefreshSections();
+    }
+
+    /// <summary>
+    /// Discard any read information;
+    /// <br></br> Required to load new information without generating persistent garbage;
+    /// </summary>
+    public override void FlushData() {
+
+        /// Editor & Section Variables;
+        CleanMeshPreviewDictionary();
+        ResetData();
+
+        if (DummyGameObject) DestroyImmediate(DummyGameObject);
+
+        Undo.undoRedoPerformed -= UpdateSlotChangedStatus;
+    }
+
+    #endregion
+
+    #region | Global Methods |
+
+    /// <summary>
+    /// Set the currently selected asset;
+    /// </summary>
+    /// <param name="path"> Path to the selected asset; </param>
+    public override void SetSelectedAsset(string path) {
+        FlushData();
+        LoadSelectedAsset(path);
+        ActiveAssetMode = AssetMode.Model;
+        ActiveSection = SectionType.Model;
+    }
+
+    /// <summary>
+    /// Change the Toolbar to deal with a different type of Model content;
+    /// </summary>
+    /// <param name="newAssetMode"> New model type to atune the toolbar to; </param>
+    public void SetSelectedAssetMode(AssetMode newAssetMode) {
+        switch (newAssetMode) {
+            case AssetMode.Model:
+                SetSelectedSection(SectionType.Model);
+                break;
+            case AssetMode.Animation:
+                SetSelectedSection(SectionType.Rig);
+                break;
+        } ActiveAssetMode = newAssetMode;
+    }
+
+    /// <summary>
+    /// Sets the GUI's selected Reader Section;
+    /// </summary>
+    /// <param name="sectionType"> Type of the prospective section to show; </param>
+    public void SetSelectedSection(SectionType sectionType) {
+        if (ActiveSection != sectionType) {
+            ActiveSection = sectionType;
+            ResetData();
+        }
+    }
+
+    /// <summary>
+    /// Assign a reference to the Model importer at the designated path and load corresponding references;
+    /// </summary>
+    /// <param name="path"> Path to the model to read; </param>
+    private void LoadSelectedAsset(string path) {
+        Model = AssetImporter.GetAtPath(path) as ModelImporter;
+        ModelID = AssetDatabase.AssetPathToGUID(Model.assetPath);
+        ModelExtData = ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null;
+        Prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        FileInfo = new FileInfo(path);
+        UpdateMeshAndMaterialProperties();
+        UpdateInternalMaterialMap();
+        int prefabCount = UpdatePrefabVariantInfo();
+        RegisterPrefabLog("Found " + prefabCount + " Prefab Variant(s) in the Asset Library;");
+        Undo.undoRedoPerformed += UpdateSlotChangedStatus;
+    }
+
+    #endregion
+
+    #region | Model Helpers |
+
+    /// <summary>
+    /// Updates the Model Notes and disables hot control to properly update the Text Area;
+    /// </summary>
+    /// <param name="notes"> Notes to pass to the ExtData; </param>
+    private void UpdateAssetNotes(string notes) {
+        using (var so = new SerializedObject(ModelExtData)) {
+            SerializedProperty noteProperty = so.FindProperty("notes");
+            noteProperty.stringValue = notes;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        } GUIUtility.keyboardControl = 0;
+        GUIUtility.hotControl = 0;
+    }
+
+    #endregion
+
+    #region | Mesh Helpers |
+
+    private void SetSelectedMesh(Mesh mesh, GameObject gameObject, Renderer renderer) {
+        ResetData();
+        SelectedMesh = new SelectedMeshProperties(mesh, gameObject, renderer);
+        LocalVertexCount = mesh.vertexCount;
+        LocalTriangleCount = mesh.triangles.Length;
+    }
+
+    private void SetSelectedSubMesh(int index) {
+        CleanMeshPreview();
+        CleanObjectPreview();
+        if (index > 0) {
+            CreateDummyGameObject(SelectedMesh.gameObject);
+            Renderer renderer = DummyGameObject.GetComponent<Renderer>();
+            Material[] arr = renderer.sharedMaterials;
+            arr[index - 1] = CustomTextures.highlight;
+            renderer.sharedMaterials = arr;
+        } SelectedSubmeshIndex = index;
+    }
+
+    #endregion
+
+    #region | Material Helpers |
+
+    /// <summary>
+    /// Override of the Material Replacement method for simple internal use;
+    /// </summary>
+    /// <param name="key"> Name of the material binding to change; </param>
+    /// <param name="newMaterial"> Material to place in the binding; </param>
+    public void ReplacePersistentMaterial(string key, Material newMaterial) {
+        MaterialUtils.ReplacePersistentMaterial(key, newMaterial, Model);
+        StaticMaterialSlots[key] = newMaterial;
+        Model.SaveAndReimport();
+        UpdateObjectPreview();
+        UpdateMeshAndMaterialProperties();
+        UpdateSlotChangedStatus();
+    }
+
+    /// <summary>
+    /// Reverts the serialized references back to their original state;
+    /// </summary>
+    public void ResetSlotChanges() {
+        if (Model == null) return;
+        foreach (KeyValuePair<string, Material> kvp in OriginalMaterialSlots) {
+            MaterialUtils.ReplacePersistentMaterial(kvp.Key, kvp.Value, Model);
+        } StaticMaterialSlots = new Dictionary<string, Material>(OriginalMaterialSlots);
+        Model.SaveAndReimport();
+        UpdateObjectPreview();
+        UpdateMeshAndMaterialProperties();
+        hasStaticSlotChanges = false;
+    }
+
+    /// <summary>
+    /// Assigns the current static dictionary as the persistent material dictionary;
+    /// </summary>
+    public void AssignMaterialsPersistently() {
+        OriginalMaterialSlots = new Dictionary<string, Material>(StaticMaterialSlots);
+        hasStaticSlotChanges = false;
+    }
+
+    /// <summary>
+    /// Compares the current material mapping with the original and decides if they are different;
+    /// </summary>
+    public void UpdateSlotChangedStatus() {
+        if (Model.materialImportMode == 0 || Model.materialLocation == 0) {
+            hasStaticSlotChanges = false;
+            return;
+        }
+
+        foreach (KeyValuePair<string, Material> kvp in StaticMaterialSlots) {
+            if (OriginalMaterialSlots[kvp.Key] != kvp.Value) {
+                hasStaticSlotChanges = true;
+                return;
+            }
+        } hasStaticSlotChanges = false;
+    }
+
+    /// <summary>
+    /// Set the Material field of the Selected Material;
+    /// <br></br> May be called by the Inspector Window to deselect the current material;
+    /// </summary>
+    /// <param name="material"> Material to showcase and edit; </param>
+    private void SetSelectedMaterial(Material material) {
+        if (material != null) CloseMaterialInspectorWindow();
+        if (selectedMaterial == null) selectedMaterial = new SelectedMaterialProperties(material);
+        else selectedMaterial.material = material;
+    }
+
+    /// <summary>
+    /// Set the GameObject and Renderer fields of the Selected Material;
+    /// </summary>
+    /// <param name="gameObject"> GameObject showcasing the material; </param>
+    /// <param name="renderer"> Renderer holding the showcased mesh; </param>
+    private void SetSelectedRenderer(GameObject gameObject, Renderer renderer) {
+        CleanObjectPreview();
+        if (selectedMaterial == null) {
+            selectedMaterial = new SelectedMaterialProperties(gameObject, renderer);
+        } else if (selectedMaterial.renderer != renderer) {
+            selectedMaterial.gameObject = gameObject;
+            selectedMaterial.renderer = renderer;
+        } CreateDummyGameObject(gameObject);
+    }
+
+    #endregion
+
+    #region | Prefab Helpers |
+
+    /// <summary>
+    /// Load and process the Prefab Variant Data from the Model Asset Library for future display;
+    /// </summary>
+    private int UpdatePrefabVariantInfo() {
+        PrefabVariantInfo = new List<PrefabVariantData>();
+        List<string> prefabIDs = ModelAssetLibrary.ModelDataDict[ModelID].prefabIDList;
+        foreach (string prefabID in prefabIDs) {
+            string name = ModelAssetLibrary.PrefabDataDict[prefabID].name + ".prefab";
+            PrefabVariantInfo.Add(new PrefabVariantData(prefabID, name));
+        } DetermineDefaultPrefabName(Model.assetPath.ToPrefabPath());
+        return prefabIDs.Count;
+    }
+
+    /// <summary>
+    /// Determine the next default prefab name;
+    /// </summary>
+    /// <param name="basePath"> Path of the prefab asset; </param>
+    /// <param name="name"> Updated inside the recursive stack, no input is required; </param>
+    /// <param name="annex"> Updated inside the recursive stack, no input is required; </param>
+    private void DetermineDefaultPrefabName(string basePath, string name = null, int annex = 0) {
+        if (name == null) {
+            name = ModelAssetLibrary.ModelDataDict[ModelID].name.Replace(' ', '_');
+            if (char.IsLetter(name[0]) && char.IsLower(name[0])) name = name.Substring(0, 1).ToUpper() + name[1..];
+        } string annexedName = name + (annex > 0 ? "_" + annex : "");
+        if (ModelAssetLibrary.NoAssetAtPath(basePath + "/" + annexedName + ".prefab")) {
+            SetDefaultPrefabName(annexedName);
+        } else if (annex < 100) { /// Cheap stack overflow error prevention;
+            annex++;
+            DetermineDefaultPrefabName(basePath, name, annex);
+        }
+    }
+
+    /// <summary>
+    /// Sets the default prefab name and removes hotcontrol (to update text field);
+    /// </summary>
+    /// <param name="name"> New default name; </param>
+    private void SetDefaultPrefabName(string name) {
+        this.prefabName = name;
+        GUIUtility.keyboardControl = 0;
+        GUIUtility.hotControl = 0;
+    }
+
+    /// <summary>
+    /// Override for convenient internal use;
+    /// </summary>
+    /// <returns> True if the name is valid, false otherwise; </returns>
+    private bool ValidateFilename() {
+        NameCondition = GeneralUtils.ValidateFilename(Model.assetPath.ToPrefabPathWithName(prefabName), prefabName);
+        return NameCondition == 0;
+    }
+
+    /// <summary>
+    /// Register a prefab in the Model Asset Library with a given name;
+    /// </summary>
+    /// <param name="modelID"> ID of the model for which the prefab will be registered; </param>
+    /// <param name="newPrefabName"> File name of the new prefab variant; </param>
+    private void RegisterPrefab(string modelID, string newPrefabName) {
+        ModelAssetLibrary.RegisterNewPrefab(modelID, newPrefabName);
+        NameCondition = GeneralUtils.InvalidNameCondition.Success;
+        UpdatePrefabVariantInfo();
+    }
+
+    /// <summary>
+    /// Writes a temporary log string with a timestamp to the stack;
+    /// </summary>
+    /// <param name="log"> String to push to the stack; </param>
+    private void RegisterPrefabLog(string log) {
+        string logTime = System.DateTime.Now.ToLongTimeString().RemovePathEnd(" ") + ": ";
+        PrefabActionLog.Push(logTime + " " + log);
+    }
+
+    #endregion
+
+    #region | Animation Helpers |
+
+    /// <summary>
+    /// Fetches a reference to the Animation Editor class;
+    /// </summary>
+    private void FetchAnimationEditor() {
+        /// Fetch a reference to the base Model Importer Editor class;
+        var editorType = typeof(Editor).Assembly.GetType("UnityEditor.ModelImporterEditor");
+        /// Perform a clean reconstruction of the Model Importer Editor;
+        if (AnimationEditor != null) Object.DestroyImmediate(AnimationEditor);
+        AnimationEditor = Editor.CreateEditor(Model, editorType);
+    }
+
+    /// <summary>
+    /// Cleans the Animation Editor, if it exists;
+    /// </summary>
+    private void CleanAnimationEditor() {
+        if (AnimationEditor != null) {
+            Object.DestroyImmediate(AnimationEditor);
+        }
+    }
+
+    #endregion
+
+    #region | Loading Helpers |
+
+    /// <summary>
+    /// Checks if the model reference is available;
+    /// </summary>
+    /// <returns> True if the model reference is null, false otherwise; </returns>
+    private bool ReferencesAreFlushed() => Model == null;
+
+    /// <summary>
+    /// Reads all 'accesible' mesh and material data from a model;
+    /// </summary>
+    private void UpdateMeshAndMaterialProperties() {
+        CleanMeshPreviewDictionary();
+        MeshPreviewDict = new Dictionary<Renderer, Texture2D>();
+        MeshRenderers = new List<MeshRendererPair>();
+        MeshFilter[] mfs = Prefab.GetComponentsInChildren<MeshFilter>();
+        SkinnedMeshRenderer[] smrs = Prefab.GetComponentsInChildren<SkinnedMeshRenderer>();
+
+        Mesh dummyMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+        MeshPreview mp = new MeshPreview(dummyMesh);
+        Resources.UnloadAsset(dummyMesh);
+        foreach (MeshFilter mf in mfs) {
+            MeshRenderer mr = mf.GetComponent<MeshRenderer>();
+            MeshRenderers.Add(new MeshRendererPair(mf, mr));
+            var sharedMesh = mf.sharedMesh;
+            GlobalVertexCount += sharedMesh.vertexCount;
+            GlobalTriangleCount += sharedMesh.triangles.Length;
+            mp.mesh = sharedMesh;
+            Texture2D previewTexture = mp.RenderStaticPreview(200, 200);
+            previewTexture.hideFlags = HideFlags.HideAndDontSave;
+            MeshPreviewDict[mr] = previewTexture;
+            AssignAllMaterialsInRenderer(mr);
+        } foreach (SkinnedMeshRenderer smr in smrs) {
+            MeshRenderers.Add(new MeshRendererPair(null, smr));
+            var sharedMesh = smr.sharedMesh;
+            GlobalVertexCount += sharedMesh.vertexCount;
+            GlobalTriangleCount += sharedMesh.triangles.Length;
+            mp.mesh = sharedMesh;
+            Texture2D previewTexture = mp.RenderStaticPreview(200, 200);
+            previewTexture.hideFlags = HideFlags.HideAndDontSave;
+            MeshPreviewDict[smr] = previewTexture;
+            AssignAllMaterialsInRenderer(smr);
+        } mp.Dispose();
+    }
+
+    /// <summary>
+    /// Add all the unique material assets on a Mesh Renderer to the Material Dictionary;
+    /// </summary>
+    /// <param name="renderer"> Renderer to get the materials from; </param>
+    private void AssignAllMaterialsInRenderer(Renderer renderer) {
+        foreach (Material material in renderer.sharedMaterials) {
+            if (material == null) continue;
+            var mrp = GetMRP(renderer);
+            if (!materialDict.ContainsKey(material)) materialDict[material] = new List<MeshRendererPair>();
+            var res = materialDict[material].Find((pair) => pair.renderer.gameObject == mrp.renderer.gameObject);
+            if (res.Equals(default(MeshRendererPair))) materialDict[material].Add(mrp);
+        }
+    }
+
+    /// <summary>
+    /// Assigns copies of the material maps in the importer to the static maps in the reader;
+    /// </summary>
+    private void UpdateInternalMaterialMap() {
+        OriginalMaterialSlots = MaterialUtils.LoadInternalMaterialMap(Model);
+        StaticMaterialSlots = new Dictionary<string, Material>(OriginalMaterialSlots);
+    }
+
+    /// <summary>
+    /// Create a MeshRendererPair based on the type of renderer passed;
+    /// </summary>
+    /// <param name="renderer"> Mesh Renderer which must be turned into a Mesh Renderer Pair; </param>
+    /// <returns> Adequate MeshRendererPair for the renderer passed; </returns>
+    private MeshRendererPair GetMRP(Renderer renderer) {
+        if (renderer is SkinnedMeshRenderer) {
+            return new MeshRendererPair(null, renderer);
+        } else {
+            return new MeshRendererPair(renderer.GetComponent<MeshFilter>(), renderer);
+        }
+    }
+
+    /// <summary>
+    /// Takes an array of materials and removes all duplicates;
+    /// </summary>
+    /// <param name="materials"> Array to process; </param>
+    /// <returns> Array of unique material assets; </returns>
+    private Material[] GetUniqueMaterials(Material[] materials) {
+        List<Material> materialList = new List<Material>();
+        foreach (Material material in materials) {
+            if (!materialList.Contains(material)) materialList.Add(material);
+        } return materialList.ToArray();
+    }
+
+    #endregion
+
+    #region | Preview Helpers |
+
+    /// <summary>
+    /// An internal overload of the Object Preview method that cleans up the Dummy Object when needed;
+    /// </summary>
+    /// <param name="gameObject"> GameObject to show in the Preview; </param>
+    /// <param name="width"> Width of the Preview's Rect; </param>
+    /// <param name="height"> Height of the Preview's Rect; </param>
+    private void DrawObjectPreviewEditor(GameObject gameObject, float width, float height) {
+        if (objectPreview is null) {
+            if (gameObject != null) objectPreview = new GenericPreview(gameObject);
+        } objectPreview.DrawPreview(GUILayout.Width(width), GUILayout.Height(height));
+        DestroyImmediate(DummyGameObject);
+    }
+
+    /// <summary>
+    /// Draw a mesh preview of the currently selected mesh;
+    /// </summary>
+    /// <param name="mesh"> Mesh to draw the preview for; </param>
+    /// <param name="width"> Width of the Preview's Rect; </param>
+    /// <param name="height"> Height of the Preview's Rect; </param>
+    private void DrawMeshPreviewEditor(Mesh mesh, float width, float height) {
+        Rect rect = GUILayoutUtility.GetRect(width, height);
+        if (ReaderMeshPreview == null) {
+            ReaderMeshPreview = new MeshPreview(mesh);
+        } else {
+            GUIStyle style = new GUIStyle();
+            style.normal.background = CustomTextures.meshPreviewBackground;
+            ReaderMeshPreview.OnPreviewGUI(rect, style);
+        }
+    }
+
+    /// <summary>
+    /// Create a Material Editor and show its OnInspectorGUI() layout;
+    /// </summary>
+    /// <param name="targetMaterial"> Material to show in the Editor; </param>
+    private void DrawMaterialInspector(Material targetMaterial) {
+        if (MaterialInspectorWindow == null) {
+            MaterialInspectorWindow = ModelAssetDatabaseMaterialInspector.ShowWindow(targetMaterial, MaterialInspectorCallback);
+        }
+    }
+
+    private void MaterialInspectorCallback(bool closeWindow) {
+        if (closeWindow) SetSelectedMaterial(null);
+        UpdateObjectPreview();
+        MainGUI.Repaint();
+    }
+
+    /// <summary>
+    /// Clean up all textures stored in the preview dictionary, as well as the dictionary itself;
+    /// <br></br> According to Unity's Memory Profiler, this is safe... probably;
+    /// </summary>
+    private void CleanMeshPreviewDictionary() {
+        if (MeshPreviewDict == null) return;
+        foreach (KeyValuePair<Renderer, Texture2D> kvp in MeshPreviewDict) {
+            if (kvp.Value != null) DestroyImmediate(kvp.Value);
+        } MeshPreviewDict = null;
+    }
+
+    /// <summary>
+    /// Dispose of the current Object Preview Editor;
+    /// <br></br> May be called by the Material Inspector to update the Preview;
+    /// </summary>
+    private void CleanObjectPreview() {
+        if (!ReferenceEquals(objectPreview, null)) objectPreview.CleanUp(ref objectPreview);
+    }
+
+    /// <summary>
+    /// Dispose of the contents of the current Mesh Preview;
+    /// </summary>
+    private void CleanMeshPreview() {
+        try {
+            if (ReaderMeshPreview != null) {
+                ReaderMeshPreview.Dispose();
+                ReaderMeshPreview = null;
+            }
+        } catch (System.NullReferenceException) {
+            Debug.LogWarning("Nice Assembly Reload! Please disregard this message...");
+        }
+    }
+
+    /// <summary>
+    /// Close the Material Inspector Window;
+    /// </summary>
+    private void CloseMaterialInspectorWindow() {
+        if (MaterialInspectorWindow != null && EditorWindow.HasOpenInstances<ModelAssetDatabaseMaterialInspector>()) {
+            MaterialInspectorWindow.Close();
+        }
+    }
+
+    /// <summary>
+    /// Close the Material Helper Window;
+    /// </summary>
+    private void CloseMaterialHelperWindow() {
+        if (MaterialHelperWindow is not null && EditorWindow.HasOpenInstances<ModelAssetDatabaseMaterialHelper>()) {
+            MaterialHelperWindow.Close();
+        }
+    }
+
+    /// <summary>
+    /// Creates a dummy GameObject to showcase changes without changing the model prefab;
+    /// </summary>
+    /// <param name="gameObject"> GameObject to reproduce; </param>
+    private void CreateDummyGameObject(GameObject gameObject) {
+        if (DummyGameObject) DestroyImmediate(DummyGameObject);
+        DummyGameObject = Instantiate(gameObject);
+    }
+
+    /// <summary>
+    /// A method wrapping two other methods often called together to update the object preview;
+    /// </summary>
+    private void UpdateObjectPreview() {
+        CleanObjectPreview();
+        if (selectedMaterial != null && selectedMaterial.gameObject is not null) {
+            CreateDummyGameObject(selectedMaterial.gameObject);
+        }
+    }
+
+    #endregion
+
+    #endregion
+
+    #region | Tool GUI |
 
     #region | GUI-Exclusive Variables |
 
@@ -62,8 +821,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Call the appropriate section function based on GUI Selection;
     /// </summary>
-    /// <param name="sectionType"> Section selected in the GUI; </param>
-    public static void ShowSelectedSection() {
+    public override void ShowGUI() {
 
         if (ReferencesAreFlushed()) {
             EditorUtils.DrawScopeCenteredText("Selected Asset Data will be displayed here;");
@@ -98,19 +856,11 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Refresh the scrolling variables and reset all section dependent variables;
     /// </summary>
-    public static void RefreshSections() {
+    private void RefreshSections() {
         notes = null;
         editNotes = false;
         materialSearchMode = 0;
-        MainGUI.SetHighRepaintFrequency(false);
-        meshUpperScroll = Vector2.zero;
-        meshLowerScroll = Vector2.zero;
-        topMaterialScroll = Vector2.zero;
-        leftMaterialScroll = Vector2.zero;
-        rightMaterialScroll = Vector2.zero;
-        prefabLogScroll = Vector2.zero;
-        prefabListScroll = Vector2.zero;
-        animationScroll = Vector2.zero;
+        ModelAssetDatabaseGUI.MainGUI.SetHighRepaintFrequency(false);
     }
 
     #endregion
@@ -120,7 +870,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Draws the toolbar for the Model Reader;
     /// </summary>
-    public static void DrawModelReaderToolbar() {
+    public override void DrawToolbar() {
         GUI.enabled = Model != null;
         switch (ActiveAssetMode) {
             case AssetMode.Model:
@@ -147,7 +897,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <param name="sectionType"> Section selected by this button; </param>
     /// <param name="minWidth"> Minimum width of the button; </param>
     /// <param name="maxWidth"> Maximum width of the button; </param>
-    private static void DrawToolbarButton(SectionType sectionType, float minWidth, float maxWidth) {
+    private void DrawToolbarButton(SectionType sectionType, float minWidth, float maxWidth) {
         GUIStyle buttonStyle = sectionType == ActiveSection ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton;
         if (GUILayout.Button(System.Enum.GetName(typeof(SectionType), sectionType),
                              buttonStyle, GUILayout.MinWidth(minWidth), GUILayout.MaxWidth(maxWidth))) {
@@ -160,7 +910,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     #region | Model Section |
 
     /// <summary> GUI Display for the Model Section </summary>
-    public static void ShowModelSection() {
+    public void ShowModelSection() {
 
         using (new EditorGUILayout.HorizontalScope()) {
             /// Model Preview + Model Details;
@@ -341,7 +1091,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     #region | Meshes Section |
 
     /// <summary> GUI Display for the Meshes Section </summary>
-    public static void ShowMeshesSection() {
+    public void ShowMeshesSection() {
         using (new EditorGUILayout.HorizontalScope()) {
             /// Mesh Preview + Mesh Details;
             using (new EditorGUILayout.VerticalScope(GUILayout.Width(200), GUILayout.Height(200))) {
@@ -356,7 +1106,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                                     .ShowPreviewSettings(ReaderMeshPreview,
                                                          GUIUtility.GUIToScreenRect(GUILayoutUtility.GetLastRect()));
                             }
-                        } else DrawInternalObjectPreviewEditor(DummyGameObject, 192, 192);
+                        } else DrawObjectPreviewEditor(DummyGameObject, 192, 192);
                         using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                             if (GUILayout.Button("Open In Materials")) SwitchToMaterials(SelectedMesh.renderer);
                         }
@@ -421,7 +1171,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// </summary>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
     /// <param name="selectMaterialRenderer"> Whether the button is being used in the Materials Section; </param>
-    private static void DrawMeshSearchArea(float scaleMultiplier = 1f, bool selectMaterialRenderer = false) {
+    private void DrawMeshSearchArea(float scaleMultiplier = 1f, bool selectMaterialRenderer = false) {
 
         EditorUtils.DrawSeparatorLines("All Meshes", true);
 
@@ -450,11 +1200,11 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <param name="renderer"> Renderer containing the mesh; </param>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
     /// <param name="selectMaterialRenderer"> Whether the button is used for the Materials section; </param>
-    private static void DrawMeshSelectionButton(Mesh mesh, GameObject gameObject, Renderer renderer, float scaleMultiplier, bool selectMaterialRenderer = false) {
+    private void DrawMeshSelectionButton(Mesh mesh, GameObject gameObject, Renderer renderer, float scaleMultiplier, bool selectMaterialRenderer = false) {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
             if ((SelectedMesh != null && SelectedMesh.mesh == mesh)
-                || (SelectedMaterial != null && SelectedMaterial.renderer == renderer)) {
+                || (selectedMaterial != null && selectedMaterial.renderer == renderer)) {
                 GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(19 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
                 if (selectMaterialRenderer) {
@@ -470,7 +1220,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// Update the selected submesh index and update the preview to reflect it;
     /// </summary>
     /// <param name="index"> Index of the submesh to select; </param>
-    private static void DrawSubMeshSelectionButton(int index) {
+    private void DrawSubMeshSelectionButton(int index) {
         bool isSelected = index == SelectedSubmeshIndex;
         GUIStyle buttonStyle = isSelected ? EditorStyles.helpBox : GUI.skin.box;
         using (new EditorGUILayout.VerticalScope(buttonStyle, GUILayout.MaxWidth(35), GUILayout.MaxHeight(35))) {
@@ -485,7 +1235,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// A button to switch to the Material section with the current mesh selected;
     /// </summary>
     /// <param name="renderer"> The renderer to keep through the section change; </param>
-    private static void SwitchToMaterials(Renderer renderer) {
+    private void SwitchToMaterials(Renderer renderer) {
         SetSelectedSection(SectionType.Materials);
         SetSelectedRenderer(renderer.gameObject, renderer);
     }
@@ -495,10 +1245,10 @@ public static class ModelAssetLibraryModelReaderGUI {
     #region | Materials Section |
 
     /// <summary> GUI Display for the Materials Section </summary>
-    public static void ShowMaterialsSection() {
+    public void ShowMaterialsSection() {
 
-        if (SelectedMaterial != null && SelectedMaterial.material != null) {
-            DrawMaterialInspector(SelectedMaterial.material);
+        if (selectedMaterial != null && selectedMaterial.material != null) {
+            DrawMaterialInspector(selectedMaterial.material);
         }
 
         using (new EditorGUILayout.VerticalScope()) {
@@ -530,8 +1280,8 @@ public static class ModelAssetLibraryModelReaderGUI {
                 using (new EditorGUILayout.VerticalScope(GUILayout.Width(200), GUILayout.Height(200))) {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(200), GUILayout.Height(200))) {
                         GUILayout.Label("Material Preview", UIStyles.CenteredLabel);
-                        if (SelectedMaterial != null && SelectedMaterial.renderer != null) {
-                            DrawInternalObjectPreviewEditor(DummyGameObject, 192, 192);
+                        if (selectedMaterial != null && selectedMaterial.renderer != null) {
+                            DrawObjectPreviewEditor(DummyGameObject, 192, 192);
                             if (GUILayout.Button("Update Preview")) {
                                 UpdateObjectPreview();
                             }
@@ -542,9 +1292,9 @@ public static class ModelAssetLibraryModelReaderGUI {
                         GUILayout.Label("Search Mode:", UIStyles.RightAlignedLabel);
                         materialSearchMode = (MaterialSearchMode) EditorGUILayout.EnumPopup(materialSearchMode);
                     }
-                    if (SelectedMaterial != null && SelectedMaterial.renderer != null) {
+                    if (selectedMaterial != null && selectedMaterial.renderer != null) {
                         using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
-                            if (GUILayout.Button("Open In Meshes")) SwitchToMeshes(SelectedMaterial.renderer);
+                            if (GUILayout.Button("Open In Meshes")) SwitchToMeshes(selectedMaterial.renderer);
                         }
                     }
                 }
@@ -586,18 +1336,18 @@ public static class ModelAssetLibraryModelReaderGUI {
                             UpdateSlotChangedStatus();
                             break;
                         case ModelImporterMaterialLocation.InPrefab:
-                            if (HasStaticSlotChanges) {
+                            if (hasStaticSlotChanges) {
                                 GUI.color = UIColors.Green;
                                 if (GUILayout.Button("<b>Assign Materials</b>", UIStyles.SquashedButton, GUILayout.MaxWidth(125))) {
                                     AssignMaterialsPersistently();
                                 } GUI.color = UIColors.Red;
                                 if (GUILayout.Button("<b>Revert Materials</b>", UIStyles.SquashedButton, GUILayout.MaxWidth(125))) {
-                                    Undo.RecordObject(SelectedMaterial.renderer, UNDO_MATERIAL_CHANGE);
+                                    Undo.RecordObject(selectedMaterial.renderer, UNDO_MATERIAL_CHANGE);
                                     ResetSlotChanges();
                                 } GUI.color = Color.white;
                                 GUIContent helperContent = new GUIContent(EditorUtils.FetchIcon("d__Help"));
                                 if (GUILayout.Button(helperContent, GUILayout.MaxWidth(25), GUILayout.MaxHeight(18))) {
-                                    MaterialHelperWindow = ModelAssetLibraryMaterialHelper.ShowWindow(Model);
+                                    MaterialHelperWindow = ModelAssetDatabaseMaterialHelper.ShowWindow(this);
                                 }
                             } else {
                                 GUI.enabled = false;
@@ -615,7 +1365,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <br></br> Drawn in Material Search Mode;
     /// </summary>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    private static void DrawMaterialSearchArea(float scaleMultiplier = 1f) {
+    private void DrawMaterialSearchArea(float scaleMultiplier = 1f) {
 
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("All Materials", true);
@@ -624,7 +1374,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                                                           GUI.skin.box, GUILayout.MaxWidth(panelWidth), GUILayout.MaxHeight(110))) {
                 topMaterialScroll = view.scrollPosition;
                 using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth), GUILayout.Height(110))) {
-                    foreach (Material material in MaterialDict.Keys) DrawMaterialButton(material, scaleMultiplier);
+                    foreach (Material material in materialDict.Keys) DrawMaterialButton(material, scaleMultiplier);
                 }
             }
         }
@@ -635,16 +1385,16 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <br></br> Drawn in Mesh Search Mode;
     /// </summary>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    private static void DrawAvailableMaterials(float scaleMultiplier = 1f) {
+    private void DrawAvailableMaterials(float scaleMultiplier = 1f) {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("Available Materials", true);
-            if (SelectedMaterial != null && SelectedMaterial.renderer != null) {
+            if (selectedMaterial != null && selectedMaterial.renderer != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(leftMaterialScroll, true, false,
                                                       GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
                                                       GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     leftMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(110))) {
-                        Material[] uniqueMaterials = GetUniqueMaterials(SelectedMaterial.renderer.sharedMaterials);
+                        Material[] uniqueMaterials = GetUniqueMaterials(selectedMaterial.renderer.sharedMaterials);
                         foreach (Material material in uniqueMaterials) {
                             DrawMaterialButton(material, scaleMultiplier);
                         }
@@ -659,16 +1409,16 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <br></br> Drawn in Material Search Mode;
     /// </summary>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    private static void DrawAvailableMeshes(float scaleMultiplier = 1f) {
+    private void DrawAvailableMeshes(float scaleMultiplier = 1f) {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("Available Meshes", true);
-            if (SelectedMaterial != null && SelectedMaterial.material != null) {
+            if (selectedMaterial != null && selectedMaterial.material != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(leftMaterialScroll, true, false,
                                                                   GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
                                                                   GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     leftMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(110))) {
-                        foreach (MeshRendererPair mrp in MaterialDict[SelectedMaterial.material]) {
+                        foreach (MeshRendererPair mrp in materialDict[selectedMaterial.material]) {
                             if (mrp.renderer is SkinnedMeshRenderer) {
                                 DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
                                                         mrp.renderer.gameObject, mrp.renderer, scaleMultiplier, true);
@@ -686,10 +1436,10 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// Draws the 'Material Slots' scrollview at the bottom right;
     /// <br></br> Drawn for all search modes;
     /// </summary>
-    private static void DrawMaterialSlots() {
+    private void DrawMaterialSlots() {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("Material Slots", true);
-            if (SelectedMaterial != null && SelectedMaterial.renderer != null) {
+            if (selectedMaterial != null && selectedMaterial.renderer != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(rightMaterialScroll, true, false,
                                                                   GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
                                                                   GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
@@ -727,10 +1477,10 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// </summary>
     /// <param name="material"> Material to draw the button for; </param>
     /// <param name="scaleMultiplier"> A lazy scale multiplier; </param>
-    private static void DrawMaterialButton(Material material, float scaleMultiplier = 1f) {
+    private void DrawMaterialButton(Material material, float scaleMultiplier = 1f) {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(material), 80 * scaleMultiplier, 80 * scaleMultiplier);
-            if (SelectedMaterial != null && SelectedMaterial.material == material) {
+            if (selectedMaterial != null && selectedMaterial.material == material) {
                 GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(19 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
                 SetSelectedMaterial(material);
@@ -742,7 +1492,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// Open the currently selected Mesh in the Meshes tab;
     /// </summary>
     /// <param name="renderer"> Renderer holding the mesh; </param>
-    private static void SwitchToMeshes(Renderer renderer) {
+    private void SwitchToMeshes(Renderer renderer) {
         SetSelectedSection(SectionType.Meshes);
         MeshRendererPair mrp = GetMRP(renderer);
         Mesh mesh = null;
@@ -758,7 +1508,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     #region | Prefabs Section |
 
     /// <summary> GUI Display for the Prefabs Section </summary>
-    public static void ShowPrefabsSection() {
+    public void ShowPrefabsSection() {
 
         using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(660))) {
             using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.MaxWidth(330), GUILayout.MaxHeight(140))) {
@@ -767,12 +1517,12 @@ public static class ModelAssetLibraryModelReaderGUI {
                     GUILayout.Label("Register New Prefab Variant:");
                     if (GUILayout.Button("Validate & Register")) {
                         if (ValidateFilename()) {
-                            RegisterPrefab(ModelID, name);
-                            RegisterPrefabLog("Added Prefab Variant: " + name + ".prefab;");
+                            RegisterPrefab(ModelID, prefabName);
+                            RegisterPrefabLog("Added Prefab Variant: " + prefabName + ".prefab;");
                         }
                     }
-                } string impendingName = EditorGUILayout.TextField("Variant Name:", name);
-                if (impendingName != name) {
+                } string impendingName = EditorGUILayout.TextField("Variant Name:", prefabName);
+                if (impendingName != prefabName) {
                     if (NameCondition != 0) NameCondition = 0;
                     SetDefaultPrefabName(impendingName);
                 } DrawNameConditionBox();
@@ -805,28 +1555,28 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Draw a box with useful information about the chosen file name and prefab creation;
     /// </summary>
-    private static void DrawNameConditionBox() {
+    private void DrawNameConditionBox() {
         switch (NameCondition) {
-            case InvalidNameCondition.None:
+            case GeneralUtils.InvalidNameCondition.None:
                 EditorGUILayout.HelpBox("Messages concerning the availability of the name written above will be displayed here;", MessageType.Info);
                 break;
-            case InvalidNameCondition.Empty:
+            case GeneralUtils.InvalidNameCondition.Empty:
                 EditorGUILayout.HelpBox("The name of the file cannot be empty;", MessageType.Error);
                 break;
-            case InvalidNameCondition.Overwrite:
+            case GeneralUtils.InvalidNameCondition.Overwrite:
                 EditorGUILayout.HelpBox("A file with that name already exists in the target directory. Do you wish to overwrite it?", MessageType.Warning);
                 using (new EditorGUILayout.HorizontalScope()) {
                     if (GUILayout.Button("Overwrite")) {
-                        RegisterPrefab(ModelID, name);
-                        RegisterPrefabLog("Replaced Prefab Variant: " + name + ".prefab;");
+                        RegisterPrefab(ModelID, prefabName);
+                        RegisterPrefabLog("Replaced Prefab Variant: " + prefabName + ".prefab;");
                     } if (GUILayout.Button("Cancel")) {
-                        NameCondition = InvalidNameCondition.None;
+                        NameCondition = 0;
                     }
                 } break;
-            case InvalidNameCondition.Symbol:
+            case GeneralUtils.InvalidNameCondition.Symbol:
                 EditorGUILayout.HelpBox("The filename can only contain alphanumerical values and/or whitespace characters;", MessageType.Error);
                 break;
-            case InvalidNameCondition.Convention:
+            case GeneralUtils.InvalidNameCondition.Convention:
                 GUIStyle simulateMargins = new GUIStyle(EditorStyles.helpBox) { margin = new RectOffset(18, 0, 0, 0) };
                 using (new EditorGUILayout.HorizontalScope(simulateMargins, GUILayout.MaxHeight(30))) {
                     GUIStyle labelStyle = new GUIStyle();
@@ -846,7 +1596,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                         } GUILayout.FlexibleSpace(); GUILayout.FlexibleSpace();
                     }
                 } break;
-            case InvalidNameCondition.Success:
+            case GeneralUtils.InvalidNameCondition.Success:
                 GUIContent messageContent = new GUIContent(" Prefab Variant created successfully!", EditorUtils.FetchIcon("d_PreMatCube@2x"));
                 EditorGUILayout.HelpBox(messageContent);
                 break;
@@ -856,7 +1606,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Iterate over the prefab variants of the model and display a set of actions for each of them;
     /// </summary>
-    private static void DrawPrefabCards() {
+    private void DrawPrefabCards() {
         if (PrefabVariantInfo != null && PrefabVariantInfo.Count > 0) {
             foreach (PrefabVariantData prefabData in PrefabVariantInfo) {
                 using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
@@ -865,7 +1615,7 @@ public static class ModelAssetLibraryModelReaderGUI {
                     if (GUILayout.Button("Open Prefab", GUILayout.MaxWidth(150), GUILayout.MaxHeight(19))) {
                         EditorUtils.OpenAssetProperties(AssetDatabase.GUIDToAssetPath(prefabData.guid));
                     } if (GUILayout.Button("Open Organizer", GUILayout.MaxWidth(150), GUILayout.MaxHeight(19))) {
-                        SwitchToOrganizer(prefabData.guid);
+                        MainGUI.SwitchToOrganizer(prefabData.guid);
                     } GUI.color = UIColors.Red;
                     GUIContent deleteButton = new GUIContent(EditorUtils.FetchIcon("TreeEditor.Trash"));
                     if (GUILayout.Button(deleteButton, GUILayout.MaxWidth(75), GUILayout.MaxHeight(19))) {
@@ -883,26 +1633,12 @@ public static class ModelAssetLibraryModelReaderGUI {
         }
     }
 
-    /// <summary>
-    /// Switch to the Prefab Organizer tool and place a Search String with prefab's name;
-    /// </summary>
-    /// <param name="prefabID"> ID of the prefab used to redirect the GUI; </param>
-    private static void SwitchToOrganizer(string prefabID) {
-        MainGUI.SwitchActiveTool(MainGUI.ToolMode.PrefabOrganizer);
-        string modelID = ModelAssetLibrary.PrefabDataDict[prefabID].modelID;
-        string path = ModelAssetLibrary.ModelDataDict[modelID].path.RemovePathEnd("\\/");
-        string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
-        PrefabOrganizer.SetSelectedCategory(path);
-        PrefabOrganizer.SetSearchString(name);
-        GUIUtility.ExitGUI();
-    }
-
     #endregion
 
     #region | Animations Section |
 
     /// <summary> GUI Display for the Animations Section </summary>
-    public static void ShowAnimationsSection() {
+    public void ShowAnimationsSection() {
         if (AnimationEditor == null) FetchAnimationEditor();
 
         int panelWidth = 620;
@@ -937,7 +1673,7 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// Draws the Animation Clip Editor tab from the internal Model Importer Editor;
     /// </summary>
-    private static void DrawAnimationEditor() {
+    private void DrawAnimationEditor() {
         /// Fetch a reference to the parent Asset Importer Editor, which contains the tabs array field;
         var baseType = typeof(Editor).Assembly.GetType("UnityEditor.AssetImporterTabbedEditor");
         /// Fetch a reference to the Model Importer Clip Editor tab class;
@@ -959,7 +1695,9 @@ public static class ModelAssetLibraryModelReaderGUI {
     /// <summary>
     /// A neat message to display on unfinished sections;
     /// </summary>
-    private static void WIP() {
+    private void WIP() {
         EditorUtils.DrawScopeCenteredText("This section is not fully implemented yet.\nYou should yell at Carlos in response to this great offense!");
     }
+
+    #endregion
 }

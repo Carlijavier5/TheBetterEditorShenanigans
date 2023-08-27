@@ -1,36 +1,31 @@
-using System;
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
-using UnityEngine.UIElements;
 using UnityEditor;
 using CJUtils;
 
 /// <summary> Shows an Editor Window with a GUI that compares the Material Reader with the Material Editor override; </summary>
-public class ModelAssetLibraryMaterialHelper : EditorWindow {
+public class ModelAssetDatabaseMaterialHelper : EditorWindow {
 
-    public static ModelAssetLibraryMaterialHelper ShowWindow(ModelImporter model) {
-        window = GetWindow<ModelAssetLibraryMaterialHelper>("Material Save Guide", new System.Type[] { typeof(ModelAssetLibraryGUI) });
-        ModelAssetLibraryMaterialHelper.model = model;
+    public static ModelAssetDatabaseMaterialHelper ShowWindow(ModelAssetDatabaseModelReader reader) {
+        var window = GetWindow<ModelAssetDatabaseMaterialHelper>("Material Save Guide", new System.Type[] { typeof(ModelAssetDatabaseGUI) });
+        window.reader = reader;
         return window;
     }
 
-    private static Dictionary<string, Material> StaticDict { get { return ModelAssetLibraryModelReader.StaticMaterialSlots; } }
+    private ModelAssetDatabaseModelReader reader;
 
-    private static Dictionary<string, Material> PersistentDict { get { return ModelAssetLibraryModelReader.OriginalMaterialSlots; } }
+    private Dictionary<string, Material> staticDict { get { return reader.StaticMaterialSlots; } }
 
-    private static ModelAssetLibraryMaterialHelper window;
+    private Dictionary<string, Material> persistentDict { get { return reader.OriginalMaterialSlots; } }
 
-    private static ModelImporter model;
-
-    private static Vector2 editorScrollPosition;
+    private Vector2 editorScrollPosition;
 
     void OnGUI() {
         using (new EditorGUILayout.HorizontalScope()) {
             using (new EditorGUILayout.VerticalScope()) {
                 GUIContent buttonContent = new GUIContent("Close Window", EditorUtils.FetchIcon("d_winbtn_win_close"));
                 if (GUILayout.Button(buttonContent, UIStyles.TextureButton)) {
-                    CloseWindow();
+                    Close();
                 } EditorGUILayout.Separator();
 
                 using (new EditorGUILayout.VerticalScope()) {
@@ -43,28 +38,38 @@ public class ModelAssetLibraryMaterialHelper : EditorWindow {
                     using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                         GUILayout.Label("• This tool overwrites the Embedded Material Map in the Material Editor tab of this model's importer.", EditorStyles.boldLabel);
                         GUILayout.Label("   Updating these properties while the tool is running won't break your model, but it's not recommended!", EditorStyles.boldLabel);
-                        GUILayout.Label("• To verify that the changes are being applied correctly, you can use the buttons below to find the" +
+                        GUILayout.Label("• To verify that the changes are being applied correctly, you can use the button below to find the" +
                                         " Model Importer file you are editing.", EditorStyles.boldLabel);
                         GUILayout.Label("   Make sure the Preview in the Inspector matches the preview shown in the tool!", EditorStyles.boldLabel);
                         GUILayout.Label("• You can double-click the Object Fields below to highlight the materials in the Asset Explorer;", EditorStyles.boldLabel);
                     } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+                        if (reader is null || reader.Model is null) GUI.enabled = false;
                         if (GUILayout.Button("Highlight Model in the Project Window")) {
                             EditorUtils.OpenProjectWindow();
-                            EditorGUIUtility.PingObject(model);
-                        }
+                            EditorGUIUtility.PingObject(reader.Model);
+                        } GUI.enabled = true;
                     } EditorUtils.DrawSeparatorLines("Remapped Material Summary", true);
                     using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                         using (var view = new EditorGUILayout.ScrollViewScope(editorScrollPosition)) {
                             editorScrollPosition = view.scrollPosition;
                             using (new EditorGUILayout.VerticalScope()) {
-                                if (model != null) {
+                                if (reader is not null && reader.Model is not null) {
                                     if (DrawPropertyArray()) {
                                         GUILayout.FlexibleSpace();
-                                        GUIContent successContent = new GUIContent("All the materials are assigned in the right order. You can close this window now;",
+                                        GUIContent successContent = new GUIContent("No changes pending review;",
                                                                                    EditorUtils.FetchIcon("Progress"));
                                         GUI.color = new Vector4(0.825f, 0.99f, 0.99f, 1);
                                         GUILayout.Label(successContent, EditorStyles.helpBox);
                                         GUI.color = Color.white;
+                                    } else {
+                                        GUILayout.FlexibleSpace();
+                                        GUI.color = UIColors.Green;
+                                        if (GUILayout.Button("Assign All")) {
+                                            reader.AssignMaterialsPersistently();
+                                        } GUI.color = UIColors.Red;
+                                        if (GUILayout.Button("Discard All")) {
+                                            reader.ResetSlotChanges();
+                                        } GUI.color = Color.white;
                                     }
                                 } else EditorUtils.DrawScopeCenteredText("Whoops! An assembly reload happened. These references are gone!");
                             }
@@ -77,49 +82,53 @@ public class ModelAssetLibraryMaterialHelper : EditorWindow {
 
     private bool DrawPropertyArray() {
 
-        if (StaticDict != null && PersistentDict != null) {
+        if (staticDict != null && persistentDict != null) {
 
             bool allValuesAssigned = true;
             using (new EditorGUILayout.VerticalScope()) {
                 int index = 0;
-                foreach (KeyValuePair<string, Material> kvp in PersistentDict) {
+                foreach (KeyValuePair<string, Material> kvp in persistentDict) {
                     index++;
                     using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                         GUIStyle rectStyle = new GUIStyle(EditorStyles.selectionRect);
                         rectStyle.margin = new RectOffset(0, 0, 6, 1);
-                        using (new EditorGUILayout.HorizontalScope(rectStyle, GUILayout.MaxWidth(30), GUILayout.MaxHeight(15))) {
+                        using (new EditorGUILayout.HorizontalScope(rectStyle, GUILayout.Width(60), GUILayout.MaxHeight(15))) {
                             GUIStyle textStyle = new GUIStyle(UIStyles.CenteredLabel);
-                            GUILayout.Label(index.ToString(), textStyle);
+                            GUILayout.Label(kvp.Key, textStyle);
                         } EditorGUILayout.Space(2, false);
                         GUIStyle fieldStyle = new GUIStyle();
                         fieldStyle.padding = new RectOffset(0, 0, 6, 1);
                         using (new EditorGUILayout.HorizontalScope(fieldStyle)) {
                             EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false);
                         } GUIStyle tempStyle = new GUIStyle(EditorStyles.helpBox);
-                        bool valueChanged = kvp.Value != StaticDict[kvp.Key];
+                        bool valueChanged = kvp.Value != staticDict[kvp.Key];
                         if (valueChanged) {
                             GUILayout.Label(" ", GUILayout.MaxWidth(2));
                             GUIStyle arrowStyle = new GUIStyle();
                             arrowStyle.padding = new RectOffset(0, 0, 7, 1);
                             GUILayout.Label(new GUIContent(EditorUtils.FetchIcon("tab_next")), arrowStyle, GUILayout.MaxWidth(22));
                             using (new EditorGUILayout.HorizontalScope(fieldStyle)) {
-                                EditorGUILayout.ObjectField(StaticDict[kvp.Key], typeof(Material), false);
+                                EditorGUILayout.ObjectField(staticDict[kvp.Key], typeof(Material), false);
                             }
-                        } using (new EditorGUILayout.HorizontalScope(tempStyle, GUILayout.MaxWidth(25))) {
-                            if (valueChanged) {
-                                EditorUtils.DrawTexture(EditorUtils.FetchIcon("d_P4_DeletedLocal"), 20, 20);
-                                allValuesAssigned = false;
-                            } else {
-                                EditorUtils.DrawTexture(EditorUtils.FetchIcon("d_P4_CheckOutRemote"), 20, 20);
-                            }
+                        } float buttonSize = 28;
+                        GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { padding = new RectOffset() };
+                        if (valueChanged) {
+                            if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_P4_CheckOutRemote")),
+                                                    buttonStyle, GUILayout.Width(buttonSize), GUILayout.Height(buttonSize))) {
+                                persistentDict[kvp.Key] = staticDict[kvp.Key];
+                                reader.UpdateSlotChangedStatus();
+                                break;
+                            } if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("d_P4_DeletedLocal")),
+                                                    buttonStyle, GUILayout.Width(buttonSize), GUILayout.Height(buttonSize))) {
+                                reader.ReplacePersistentMaterial(kvp.Key, kvp.Value);
+                            } allValuesAssigned = false;
+                        } else {
+                            GUILayout.Label(EditorUtils.FetchIcon("CacheServerConnected@2x"), EditorStyles.helpBox,
+                                            GUILayout.Width(buttonSize), GUILayout.Height(buttonSize));
                         }
                     }
                 }
             } return allValuesAssigned;
         } return false;
-    }
-
-    public void CloseWindow() {
-        Close();
     }
 }
