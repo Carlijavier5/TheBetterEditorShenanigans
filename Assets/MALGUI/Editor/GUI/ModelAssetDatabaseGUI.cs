@@ -52,7 +52,7 @@ public class ModelAssetDatabaseGUI : EditorWindow {
     /// Though in separate classes, the hierarchy builder and the standard tools must occasionally communicate with one another;
     /// Since references to these instances are stored in the Main GUI, communication between the two happens here;
 
-    public ModelAssetDatabaseModelReader ModelReader { get { return Subtools[(int) ToolMode.ModelReader] as ModelAssetDatabaseModelReader; } }
+    public ModelAssetDatabaseReader ModelReader { get { return Subtools[(int) ToolMode.ModelReader] as ModelAssetDatabaseReader; } }
     public ModelAssetDatabasePrefabOrganizer PrefabOrganizer { get { return Subtools[(int) ToolMode.PrefabOrganizer] as ModelAssetDatabasePrefabOrganizer; } }
     public ModelAssetDatabaseMaterialManager MaterialManager { get { return Subtools[(int) ToolMode.MaterialManager] as ModelAssetDatabaseMaterialManager; } }
 
@@ -70,8 +70,8 @@ public class ModelAssetDatabaseGUI : EditorWindow {
     public void SwitchToLibrary(string modelID) {
         MainGUI.SwitchActiveTool(ToolMode.ModelReader);
         SetSelectedAsset(ModelAssetLibrary.ModelDataDict[modelID].path);
-        ModelReader.SetSelectedAssetMode(ModelAssetDatabaseModelReader.AssetMode.Model);
-        ModelReader.SetSelectedSection(ModelAssetDatabaseModelReader.SectionType.Prefabs);
+        ModelReader.SetSelectedAssetMode(ModelAssetDatabaseReader.AssetMode.Model);
+        ModelReader.SetSelectedSection(ModelAssetDatabaseReader.SectionType.Prefabs);
         GUIUtility.ExitGUI();
     }
 
@@ -95,7 +95,7 @@ public class ModelAssetDatabaseGUI : EditorWindow {
         ModelAssetLibraryConfigurationCore.LoadConfig();
         ModelAssetLibrary.Refresh();
         hierarchyBuilder = new ModelAssetLibraryHierarchyBuilder();
-        Subtools = new ModelAssetDatabaseTool[] { new ModelAssetDatabaseModelReader(),
+        Subtools = new ModelAssetDatabaseTool[] { new ModelAssetDatabaseReader(),
                                                   new ModelAssetDatabasePrefabOrganizer(),
                                                   new ModelAssetDatabaseMaterialManager() };
     }
