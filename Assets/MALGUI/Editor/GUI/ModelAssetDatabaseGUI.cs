@@ -159,18 +159,21 @@ public class ModelAssetDatabaseGUI : EditorWindow {
     /// Switch to a different tool;
     /// </summary>
     public void SwitchActiveTool(ToolMode newToolMode) {
-        ResetActiveToolData();
+        Subtools[(int) toolMode].ResetData();
+        Subtools[(int) newToolMode].RefreshData();
         toolMode = newToolMode;
     }
 
     /// <summary> Draws the toolbar buttons depending on the currently selected tool; </summary>
-    private void DrawToolbarButtons() => Subtools[(int) toolMode].DrawToolbar();
+    private void DrawToolbarButtons() {
+        Subtools[(int) toolMode].DrawToolbar();
+        if (GUILayout.Button(EditorUtils.FetchIcon("_Popup"), EditorStyles.toolbarButton, GUILayout.MinWidth(32), GUILayout.MaxWidth(32))) {
+            ModelAssetLibraryConfigurationGUI.ShowWindow();
+        }
+    }
 
     /// <summary> Draws the currently selected tool on the right side of the window; </summary>
     private void DrawActiveTool() => Subtools[(int) toolMode].ShowGUI();
-
-    /// <summary> Unloads the data contained in the active tool; </summary>
-    private void ResetActiveToolData() => Subtools[(int) toolMode].ResetData();
 
     /// <summary>
     /// Unloads all data contained in the tool components;

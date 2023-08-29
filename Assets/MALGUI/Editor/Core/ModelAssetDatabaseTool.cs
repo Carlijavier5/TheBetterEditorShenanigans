@@ -12,6 +12,10 @@ public abstract class ModelAssetDatabaseTool : Object {
     /// </summary>
     protected abstract void InitializeData();
     /// <summary>
+    /// Override this method to refresh tool values when the tool is reselected;
+    /// </summary>
+    public virtual void RefreshData() { }
+    /// <summary>
     /// Override this method to reset tool values when another tool is selected;
     /// </summary>
     public virtual void ResetData() { }

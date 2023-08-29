@@ -1,8 +1,7 @@
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEditor;
 using CJUtils;
-using MADUtils;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
 using static ModelAssetDatabaseGUI;
 
 /// <summary> Component class of the Model Asset Library;
@@ -46,22 +45,18 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
             this.preview = preview;
         }
     } /// <summary> Dictionary mapping path keys to the corresponding Prefab Card Data; </summary>
-    private Dictionary<string, PrefabCardData> PrefabCardMap;
+    private Dictionary<string, PrefabCardData> prefabCardMap;
 
     /// <summary> Dictionary mapping path keys to the root game object of a Model; </summary>
-    private Dictionary<string, GameObject> ModelCardMap;
+    private Dictionary<string, GameObject> modelCardMap;
 
     /// <summary> Selection group that may be passed to the DragAndDrop class; </summary>
-    private List<Object> DragSelectionGroup;
+    private List<Object> dragSelectionGroup;
     /// <summary> Whether the mouse hovered over a button in the current frame; </summary>
-    private bool MouseOverButton;
+    private bool mouseOverButton;
 
-    /// <summary> Constraints for the number of prefabs shown; </summary>
-    private enum ScopeMode {
-        Folder,
-        All
-    } /// <summary> Scope Mode selected on the Prefab Organizer GUI; </summary> 
-    private ScopeMode scopeMode;
+    /// <summary> Constraint for the number of prefabs shown on a search result; </summary>
+    private bool searchAll;
 
     /// <summary> Sorting Modes for the Prefab Organizer; </summary>
     private enum PrefabSortMode {
@@ -70,41 +65,41 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
         /// <summary> The prefab cards will be grouped by parent model; </summary>
         Model
     } /// <summary> Sorting Mode selected on the Prefab Organizer GUI; </summary>
-    private PrefabSortMode SortMode;
+    private PrefabSortMode sortMode;
 
     /// <summary> Search String obtained from the Prefab Organizer Search Bar; </summary>
-    private string SearchString;
+    private string searchString;
 
     /// <summary> List mapping the name of each prefab to their IDs; </summary>
-    private List<KeyValuePair<string, string>> prefabNameMapList;
+    /// <br></br> 1st string = Prefab Name; 2nd string = Prefab ID; 3rd string = Model ID;
+    private List<(string, string)> prefabNameMapList;
     /// <summary> List holding IDs filtered using the current Search String, if any; </summary>
-    private List<string> SearchResultList;
+    private List<string> searchResultPrefabList;
 
     #endregion
 
     #region | Initialization & Cleanup |
 
+    /// <summary>
+    /// Get the tool ready to go!
+    /// </summary>
     protected override void InitializeData() {
-        if (folderMap == null) BuildFolderMap();
-        prefabNameMapList = new List<KeyValuePair<string, string>>();
-    }
-
-    public override void ResetData() {
-        
+        prefabCardMap = new Dictionary<string, PrefabCardData>();
+        modelCardMap = new Dictionary<string, GameObject>();
+        BuildFolderMap();
+        SetSearchScope(true);
     }
 
     /// <summary>
-    /// Unloads all static data contained in the tool;
+    /// The tool must be re-initialized upon reselection to prevent errors;
     /// </summary>
-    public override void FlushData() {
-        SelectedFolder = null;
-        DragSelectionGroup = null;
-        SortMode = 0;
+    public override void RefreshData() => InitializeData();
 
-        SearchString = null;
-        prefabNameMapList = null;
-        SearchResultList = null;
-    }
+    /// <summary>
+    /// Unloads all static data contained in the tool;
+    /// <br></br> There's none at the moment :|
+    /// </summary>
+    public override void FlushData() { }
 
     #endregion
 
@@ -123,6 +118,7 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
             foreach (string modelID in folderMap[kvp.Key].modelIDs) {
                 folderMap[kvp.Key].prefabIDs.AddRange(ModelAssetLibrary.ModelDataDict[modelID].prefabIDList);
             }
+            LoadFolderData(kvp.Key);
         }
     }
 
@@ -131,8 +127,8 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// </summary>
     /// <param name="path"> Folder path to select; </param>
     public override void SetSelectedAsset(string path) {
-        DragSelectionGroup = new List<Object>();
-        LoadCategoryData(path);
+        if (!searchAll) SetSearchScope(!searchAll);
+        dragSelectionGroup = new List<Object>();
         SelectedFolder = path;
     }
 
@@ -140,22 +136,21 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// Loads all relevant static data;
     /// </summary>
     /// <param name="path"> Category path to load; </param>
-    private void LoadCategoryData(string path) {
+    private void LoadFolderData(string path) {
         foreach (string prefabID in folderMap[path].prefabIDs) {
-            if (!PrefabCardMap.ContainsKey(prefabID)) {
+            if (!prefabCardMap.ContainsKey(prefabID)) {
                 var prefabData = ModelAssetLibrary.PrefabDataDict[prefabID];
                 string assetPath = prefabData.path;
                 GameObject rootObject = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
                 Texture2D preview = AssetPreview.GetAssetPreview(rootObject);
                 while (preview == null) {
                     preview = AssetPreview.GetAssetPreview(rootObject);
-                } PrefabCardMap[prefabID] = new PrefabCardData(rootObject, preview);
-            } string name = ModelAssetLibrary.PrefabDataDict[prefabID].name;
-            prefabNameMapList.Add(new KeyValuePair<string, string>(name, prefabID));
-        } DragSelectionGroup = new List<Object>();
+                } prefabCardMap[prefabID] = new PrefabCardData(rootObject, preview);
+            }
+        } dragSelectionGroup = new List<Object>();
         foreach (string modelID in folderMap[path].modelIDs) {
             string modelPath = ModelAssetLibrary.ModelDataDict[modelID].path;
-            ModelCardMap[modelID] = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            modelCardMap[modelID] = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
         }
     }
 
@@ -167,7 +162,34 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     private void SetSortMode(PrefabSortMode sortMode) {
         /// Originally I did a thing or two here, but turns out I don't want to anymore;
         /// So I'll leave this method here anyways <3
-        SortMode = sortMode;
+        this.sortMode = sortMode;
+    }
+
+    /// <summary>
+    /// Establish the search scope for potential searches;
+    /// </summary>
+    /// <param name="searchAll"> Whether the created scope should include all available prefabs or just the active folder; </param>
+    private void SetSearchScope(bool searchAll) {
+        prefabNameMapList = new List<(string, string)>();
+        if (searchAll) {
+            foreach (KeyValuePair<string, FolderData> kvp in folderMap) {
+                ExtractSearchNames(kvp.Value.prefabIDs, ref prefabNameMapList);
+            }
+        } else {
+            ExtractSearchNames(folderMap[SelectedFolder].prefabIDs, ref prefabNameMapList);
+        } this.searchAll = searchAll;
+    }
+
+    /// <summary>
+    /// Append the names of a number of prefab IDs to a search list;
+    /// </summary>
+    /// <param name="prefabIDs"> The prefab IDs whose names must be processed; </param>
+    /// <param name="targetList"> The list to add the extracted names to; </param>
+    private void ExtractSearchNames(List<string> prefabIDs, ref List<(string, string)> targetList) {
+        foreach (string prefabID in prefabIDs) {
+            var prefabData = ModelAssetLibrary.PrefabDataDict[prefabID];
+            targetList.Add((prefabData.name, prefabID));
+        }
     }
 
     /// <summary>
@@ -176,17 +198,17 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// </summary>
     /// <param name="searchString"> New search string; </param>
     public void SetSearchString(string searchString) {
-        SearchResultList = null;
-        SearchString = searchString;
+        searchResultPrefabList = null;
+        this.searchString = searchString;
     }
 
     /// <summary>
     /// Process the Search Results upon request;
     /// </summary>
     private void ProcessSearchList() {
-        List<KeyValuePair<string, string>> processList = prefabNameMapList.FindAll((kvp) => kvp.Key.Contains(SearchString));
-        SearchResultList = new List<string>();
-        foreach (KeyValuePair<string, string> kvp in processList) SearchResultList.Add(kvp.Value);
+        List<(string, string)> processList = prefabNameMapList.FindAll((tuple) => tuple.Item1.Contains(searchString));
+        searchResultPrefabList = new List<string>();
+        foreach ((string, string) ssTuple in processList) searchResultPrefabList.Add(ssTuple.Item2);
     }
 
     #endregion
@@ -202,17 +224,21 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
         GUI.enabled = false;
         using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbarButton)) {
             if (SelectedFolder != null) GUI.enabled = true;
-            GUILayout.Label("Sort By:", new GUIStyle(UIStyles.ToolbarText) { margin = new RectOffset(0, 20, 1, 0) }, GUILayout.Width(110));
-        } if (GUILayout.Button("Name", SortMode == PrefabSortMode.Name
-                                       ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(140), GUILayout.ExpandWidth(true))) {
+            GUILayout.Label("Sort By:", new GUIStyle(UIStyles.ToolbarText) { margin = new RectOffset(0, 20, 1, 0) }, GUILayout.Width(80));
+        } if (GUILayout.Button("Name", sortMode == PrefabSortMode.Name
+                                       ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(110), GUILayout.ExpandWidth(true))) {
             SetSortMode(PrefabSortMode.Name);
-        } if (GUILayout.Button("Model", SortMode == PrefabSortMode.Model
-                                        ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(140), GUILayout.ExpandWidth(true))) {
+        } if (GUILayout.Button("Model", sortMode == PrefabSortMode.Model
+                                        ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton, GUILayout.MinWidth(110), GUILayout.ExpandWidth(true))) {
             SetSortMode(PrefabSortMode.Model);
         } GUILayout.FlexibleSpace();
-        string impendingSearch = EditorGUILayout.TextField(SearchString, EditorStyles.toolbarSearchField, GUILayout.MinWidth(140));
-        if (SearchString != impendingSearch) SetSearchString(impendingSearch);
-        GUI.enabled = true;
+        string impendingSearch = EditorGUILayout.TextField(searchString, EditorStyles.toolbarSearchField, GUILayout.MinWidth(180));
+        if (searchString != impendingSearch) SetSearchString(impendingSearch);
+        GUILayout.Label("in");
+        if (GUILayout.Button(searchAll ? "All" : "Folder", EditorStyles.toolbarButton, GUILayout.MinWidth(50), GUILayout.ExpandWidth(true))) {
+            SetSearchScope(!searchAll);
+            searchResultPrefabList = null;
+        } GUI.enabled = true;
     }
 
     /// <summary>
@@ -225,13 +251,14 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
             return;
         }
 
-        using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
-            GUILayout.Label(SelectedFolder.IsolatePathEnd("\\/"), UIStyles.CenteredLabelBold);
-        }
+        bool searchStringActive = string.IsNullOrWhiteSpace(searchString);
+        string folderName = SelectedFolder.IsolatePathEnd("\\/");
+        EditorUtils.DrawWindowBoxLabel(searchStringActive ? folderName 
+                                       : "Search Results in \"" + ( searchAll ? "All" : folderName) + "\"");
 
         using (new EditorGUILayout.HorizontalScope()) {
-            if (string.IsNullOrWhiteSpace(SearchString)) {
-                switch (SortMode) {
+            if (searchStringActive) {
+                switch (sortMode) {
                     case PrefabSortMode.Name:
                         DrawPrefabCards(folderMap[SelectedFolder].prefabIDs, 
                                         "There are no prefabs under this folder;");
@@ -253,8 +280,8 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// Draws prefab cards whose name matches the Search Query in any way;
     /// </summary>
     private void DrawSearchCards() {
-        if (SearchResultList == null) ProcessSearchList();
-        DrawPrefabCards(SearchResultList, "No matching results were found;");
+        if (searchResultPrefabList == null) ProcessSearchList();
+        DrawPrefabCards(searchResultPrefabList, "No matching results were found;");
     }
 
     /// <summary>
@@ -289,8 +316,8 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// </summary>
     /// <param name="prefabID"> ID of the prefab to draw the card for; </param>
     private void DrawPrefabCard(string prefabID) {
-        PrefabCardData data = PrefabCardMap[prefabID];
-        bool objectInSelection = DragSelectionGroup.Contains(data.rootObject);
+        PrefabCardData data = prefabCardMap[prefabID];
+        bool objectInSelection = dragSelectionGroup.Contains(data.rootObject);
         if (objectInSelection) GUI.color = UIColors.DarkBlue;
         using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox, GUILayout.MaxWidth(200), GUILayout.Height(60))) {
             GUI.color = Color.white;
@@ -322,27 +349,27 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// <param name="prefabID"> ID of the prefab; </param>
     /// <param name="objectInSelection"> Whether the prefab is in the current Drag & Drop Selection Group; </param>
     private void DrawDragAndDropPreview(string prefabID, bool objectInSelection) {
-        PrefabCardData data = PrefabCardMap[prefabID];
+        PrefabCardData data = prefabCardMap[prefabID];
         using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
             Rect buttonRect = GUILayoutUtility.GetRect(80, 80, GUILayout.ExpandWidth(false));
             if (buttonRect.Contains(Event.current.mousePosition)) {
-                MouseOverButton = true;
+                mouseOverButton = true;
                 bool mouseDown = Event.current.type == EventType.MouseDown;
                 bool mouseDrag = Event.current.type == EventType.MouseDrag;
                 bool leftClick = Event.current.button == 0;
                 bool rightClick = Event.current.button == 1;
                 if (Event.current.shift) {
                     if (objectInSelection) {
-                        if (mouseDown || (mouseDrag && rightClick)) DragSelectionGroup.Remove(data.rootObject);
-                    } else if (mouseDown || (mouseDrag && leftClick)) DragSelectionGroup.Add(data.rootObject);
+                        if (mouseDown || (mouseDrag && rightClick)) dragSelectionGroup.Remove(data.rootObject);
+                    } else if (mouseDown || (mouseDrag && leftClick)) dragSelectionGroup.Add(data.rootObject);
                 } else if (mouseDown && leftClick) {
                     DragAndDrop.PrepareStartDrag();
                     DragAndDrop.StartDrag("Dragging");
-                    DragAndDrop.objectReferences = DragSelectionGroup.Count > 1
-                                                   ? DragSelectionGroup.ToArray() : new Object[] { data.rootObject };
+                    DragAndDrop.objectReferences = dragSelectionGroup.Count > 1
+                                                   ? dragSelectionGroup.ToArray() : new Object[] { data.rootObject };
                     DragAndDrop.visualMode = DragAndDropVisualMode.Move;
                 }
-            } GUI.Label(buttonRect, PrefabCardMap[prefabID].preview, GUI.skin.button);
+            } GUI.Label(buttonRect, prefabCardMap[prefabID].preview, GUI.skin.button);
         }
     }
 
@@ -355,7 +382,7 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
                 if (mouseDown && leftClick) {
                     DragAndDrop.PrepareStartDrag();
                     DragAndDrop.StartDrag("Dragging");
-                    DragAndDrop.objectReferences = new Object[] { ModelCardMap[modelID] };
+                    DragAndDrop.objectReferences = new Object[] { modelCardMap[modelID] };
                     DragAndDrop.visualMode = DragAndDropVisualMode.Move;
                 }
             } GUI.Label(buttonRect, new GUIContent(EditorUtils.FetchIcon("d_PrefabModel Icon")), GUI.skin.button);
@@ -366,9 +393,9 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
     /// Whether a Drag & Drop Selection Group wipe may happen at the end of the frame;
     /// </summary>
     private void DeselectionCheck() {
-        if (!MouseOverButton && Event.current.type == EventType.MouseDown && !Event.current.shift
-            && Event.current.button == 0 && DragSelectionGroup.Count > 0) DragSelectionGroup.Clear();
-        MouseOverButton = false;
+        if (!mouseOverButton && Event.current.type == EventType.MouseDown && !Event.current.shift
+            && Event.current.button == 0 && dragSelectionGroup.Count > 0) dragSelectionGroup.Clear();
+        mouseOverButton = false;
     }
 
     /// <summary>

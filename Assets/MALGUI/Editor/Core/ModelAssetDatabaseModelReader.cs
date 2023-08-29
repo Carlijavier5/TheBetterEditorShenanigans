@@ -238,10 +238,10 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
         CloseMaterialHelperWindow();
 
         /// Meshes Section Dependencies;
-        if (SelectedMesh != null) SelectedMesh = null;
-        if (SelectedSubmeshIndex != 0) SelectedSubmeshIndex = 0;
+        SelectedMesh = null;
+        SelectedSubmeshIndex = 0;
         /// Materials Section Dependencies;
-        if (selectedMaterial != null) selectedMaterial = null;
+        selectedMaterial = null;
         if (hasStaticSlotChanges) {
             if (ModelAssetLibraryModalMaterialChanges.ConfirmMaterialChanges()) {
                 AssignMaterialsPersistently();
@@ -1176,7 +1176,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
         EditorUtils.DrawSeparatorLines("All Meshes", true);
 
         using (var view = new EditorGUILayout.ScrollViewScope(meshLowerScroll, true, false,
-                                                              GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
+                                                              GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                               GUI.skin.box, GUILayout.MaxWidth(panelWidth), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
             meshLowerScroll = view.scrollPosition;
             using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(panelWidth), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
@@ -1205,7 +1205,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
             EditorUtils.DrawTexture(MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
             if ((SelectedMesh != null && SelectedMesh.mesh == mesh)
                 || (selectedMaterial != null && selectedMaterial.renderer == renderer)) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(19 * scaleMultiplier));
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
                 if (selectMaterialRenderer) {
                     SetSelectedRenderer(gameObject, renderer);
@@ -1370,7 +1370,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("All Materials", true);
             using (var view = new EditorGUILayout.ScrollViewScope(topMaterialScroll, true, false,
-                                                          GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
+                                                          GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                           GUI.skin.box, GUILayout.MaxWidth(panelWidth), GUILayout.MaxHeight(110))) {
                 topMaterialScroll = view.scrollPosition;
                 using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth), GUILayout.Height(110))) {
@@ -1390,7 +1390,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
             EditorUtils.DrawSeparatorLines("Available Materials", true);
             if (selectedMaterial != null && selectedMaterial.renderer != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(leftMaterialScroll, true, false,
-                                                      GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
+                                                      GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                       GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     leftMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(110))) {
@@ -1414,7 +1414,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
             EditorUtils.DrawSeparatorLines("Available Meshes", true);
             if (selectedMaterial != null && selectedMaterial.material != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(leftMaterialScroll, true, false,
-                                                                  GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
+                                                                  GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                                   GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     leftMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.Width(panelWidth / 2), GUILayout.Height(110))) {
@@ -1441,7 +1441,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
             EditorUtils.DrawSeparatorLines("Material Slots", true);
             if (selectedMaterial != null && selectedMaterial.renderer != null) {
                 using (var view = new EditorGUILayout.ScrollViewScope(rightMaterialScroll, true, false,
-                                                                  GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
+                                                                  GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                                   GUI.skin.box, GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
                     rightMaterialScroll = view.scrollPosition;
                     using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(panelWidth / 2), GUILayout.MaxHeight(110))) {
@@ -1481,7 +1481,7 @@ public class ModelAssetDatabaseModelReader : ModelAssetDatabaseTool {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(material), 80 * scaleMultiplier, 80 * scaleMultiplier);
             if (selectedMaterial != null && selectedMaterial.material == material) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(19 * scaleMultiplier));
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(14 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
                 SetSelectedMaterial(material);
             }

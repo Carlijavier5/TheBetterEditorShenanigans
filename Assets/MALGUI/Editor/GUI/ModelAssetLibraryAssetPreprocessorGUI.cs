@@ -353,6 +353,10 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
         MADShaderUtil.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
     }
 
+    /// <summary>
+    /// Draws a button to display the global Shader Popup History;
+    /// </summary>
+    /// <param name="key"> Key where the shader value will be placed; </param>
     private void DrawShaderHistoryPopup(string key) {
         shaderKey = key;
         Rect position = EditorGUILayout.GetControlRect(GUILayout.Width(36));
