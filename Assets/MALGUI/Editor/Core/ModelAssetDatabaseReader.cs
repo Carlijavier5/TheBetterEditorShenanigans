@@ -21,7 +21,6 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         Prefabs = 3,
         Rig = 4,
         Animations = 5,
-        Skeleton = 6,
     } /// <summary> Section currently selected in the GUI; </summary>
     private SectionType ActiveSection;
 
@@ -79,12 +78,11 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// <summary> A disposable Editor class embedded in the Editor Window to show a preview of an instantiable asset; </summary>
     private GenericPreview objectPreview;
 
-    /// <summary> Disposable GameObject instantiated to showcase GUI changes non-invasively; </summary>
-    private GameObject DummyGameObject;
-
     /// <summary> Dictionary mapping each material to the renderers it is available in; </summary>
     public Dictionary<Material, List<MeshRendererPair>> MaterialDict { get; private set; }
 
+    /// <summary> Found myself using this number a lot. Right side width; </summary>
+    public const float PANEL_WIDTH = 440;
     #endregion
 
     #region | Initialization & Cleanup |
@@ -111,6 +109,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// </summary>
     public override void ResetData() {
         CleanObjectPreview();
+        tabs[(int) ActiveSection].ResetData();
         RefreshSections();
     }
 
@@ -119,13 +118,9 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// <br></br> Required to load new information without generating persistent garbage;
     /// </summary>
     public override void FlushData() {
-
-        /// Editor & Section Variables;
         CleanMeshPreviewDictionary();
         ResetData();
-
-        if (DummyGameObject) DestroyImmediate(DummyGameObject);
-
+        DestroyImmediate(DummyGameObject);
         //Undo.undoRedoPerformed -= UpdateSlotChangedStatus;
     }
 
@@ -186,7 +181,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
 
     public void ReimportModel() {
         Model.SaveAndReimport();
-        UpdateObjectPreview();
+        CleanObjectPreview();
         UpdateMeshAndMaterialProperties();
     }
 
@@ -204,10 +199,6 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// Reads all 'accesible' mesh and material data from a model;
     /// </summary>
     public void UpdateMeshAndMaterialProperties() {
-        var modelTab = tabs[(int) SectionType.Model] as ModelAssetDatabaseReaderTabModel;
-        var meshesTab = tabs[(int) SectionType.Meshes] as ModelAssetDatabaseReaderTabMeshes;
-        var materialsTab = tabs[(int) SectionType.Materials] as ModelAssetDatabaseReaderTabMaterials;
-
         CleanMeshPreviewDictionary();
         MeshPreviewDict = new Dictionary<Renderer, Texture2D>();
         MeshRenderers = new List<MeshRendererPair>();
@@ -284,6 +275,18 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
 
     #region | Preview Helpers |
 
+    /// <summary> Disposable GameObject instantiated to showcase GUI changes non-invasively; </summary>
+    public GameObject DummyGameObject { get; private set; }
+
+    /// <summary>
+    /// Creates a dummy GameObject to showcase changes without changing the model prefab;
+    /// </summary>
+    /// <param name="gameObject"> GameObject to reproduce; </param>
+    public void CreateDummyGameObject(GameObject gameObject) {
+        if (DummyGameObject) DestroyImmediate(DummyGameObject);
+        DummyGameObject = Instantiate(gameObject);
+    }
+
     /// <summary>
     /// An internal overload of the Object Preview method that cleans up the Dummy Object when needed;
     /// </summary>
@@ -292,7 +295,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// <param name="height"> Height of the Preview's Rect; </param>
     public void DrawObjectPreviewEditor(GameObject gameObject, float width, float height) {
         if (objectPreview is null) {
-            if (gameObject != null) objectPreview = new GenericPreview(gameObject);
+            objectPreview = new GenericPreview(gameObject);
         } objectPreview.DrawPreview(GUILayout.Width(width), GUILayout.Height(height));
         DestroyImmediate(DummyGameObject);
     }
@@ -316,21 +319,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         if (objectPreview is not null) objectPreview.CleanUp(ref objectPreview);
     }
 
-    /// <summary>
-    /// Creates a dummy GameObject to showcase changes without changing the model prefab;
-    /// </summary>
-    /// <param name="gameObject"> GameObject to reproduce; </param>
-    private void CreateDummyGameObject(GameObject gameObject) {
-        if (DummyGameObject) DestroyImmediate(DummyGameObject);
-        DummyGameObject = Instantiate(gameObject);
-    }
-
     #endregion
-
-    /// <summary> Found myself using this number a lot. Right side width; </summary>
-    public const float PANEL_WIDTH = 440;
-
-    #region | Global Section Calls |
 
     /// <summary>
     /// Call the appropriate section function based on GUI Selection;
@@ -348,8 +337,6 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         MainGUI.SetHighRepaintFrequency(false);
     }
 
-    #endregion
-
     #region | Global Toolbar |
 
     /// <summary>
@@ -365,9 +352,8 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
                 DrawToolbarButton(SectionType.Prefabs, 112, 245);
                 break;
             case AssetMode.Animation:
-                DrawToolbarButton(SectionType.Rig, 66, 245);
-                DrawToolbarButton(SectionType.Animations, 82, 245);
-                DrawToolbarButton(SectionType.Skeleton, 72, 245);
+                DrawToolbarButton(SectionType.Rig, 66, 345);
+                DrawToolbarButton(SectionType.Animations, 82, 345);
                 break;
         } GUILayout.FlexibleSpace();
         EditorGUILayout.LabelField("Asset Mode:", UIStyles.ToolbarText, GUILayout.Width(110));
@@ -391,43 +377,20 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     }
 
     /// <summary>
-    /// Draw a button to select a given submesh;
-    /// </summary>
-    /// <param name="mesh"> Mesh that the button will select; </param>
-    /// <param name="gameObject"> GameObject of the renderer; </param>
-    /// <param name="renderer"> Renderer containing the mesh; </param>
-    /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    /// <param name="selectMaterialRenderer"> Whether the button is used for the Materials section; </param>
-    private void DrawMeshSelectionButton(Mesh mesh, GameObject gameObject, Renderer renderer, float scaleMultiplier, bool selectMaterialRenderer = false) {
-        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
-            EditorUtils.DrawTexture(MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
-            if ((SelectedMesh != null && SelectedMesh.mesh == mesh)
-                || (selectedMaterial != null && selectedMaterial.renderer == renderer)) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
-            } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
-                if (selectMaterialRenderer) {
-                    SetSelectedRenderer(gameObject, renderer);
-                } else {
-                    SetSelectedMesh(mesh, gameObject, renderer);
-                }
-            }
-        }
-    }
-
-    /// <summary>
     /// A button to switch to the Material section with the current mesh selected;
     /// </summary>
     /// <param name="renderer"> The renderer to keep through the section change; </param>
-    private void SwitchToMaterials(Renderer renderer) {
+    public void SwitchToMaterials(Renderer renderer) {
         SetSelectedSection(SectionType.Materials);
-        SetSelectedRenderer(renderer.gameObject, renderer);
+        var materialsTab = tabs[(int) SectionType.Materials] as ModelAssetDatabaseReaderTabMaterials;
+        materialsTab.SetSelectedRenderer(renderer);
     }
 
     /// <summary>
     /// Open the currently selected Mesh in the Meshes tab;
     /// </summary>
     /// <param name="renderer"> Renderer holding the mesh; </param>
-    private void SwitchToMeshes(Renderer renderer) {
+    public void SwitchToMeshes(Renderer renderer) {
         SetSelectedSection(SectionType.Meshes);
         MeshRendererPair mrp = GetMRP(renderer);
         Mesh mesh = null;
@@ -435,7 +398,8 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
             mesh = (mrp.renderer as SkinnedMeshRenderer).sharedMesh;
         } else if (renderer is MeshRenderer) {
             mesh = mrp.filter.sharedMesh;
-        } SetSelectedMesh(mesh, renderer.gameObject, renderer);
+        } var meshesTab = tabs[(int) SectionType.Meshes] as ModelAssetDatabaseReaderTabMeshes;
+        meshesTab.SetSelectedMesh(mesh, renderer);
     }
 
     /// <summary>

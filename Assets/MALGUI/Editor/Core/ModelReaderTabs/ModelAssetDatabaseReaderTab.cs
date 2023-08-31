@@ -5,7 +5,6 @@ using UnityEngine;
 using MADUtils;
 using CJUtils;
 using static ModelAssetDatabaseReader;
-using ExtData = ModelAssetLibraryExtData;
 using static ModelAssetDatabaseGUI;
 
 public abstract class ModelAssetDatabaseReaderTab : Object {
@@ -27,13 +26,6 @@ public abstract class ModelAssetDatabaseReaderTab : Object {
     /// Reset tab dependent data when abandoning the tab;
     /// </summary>
     public virtual void ResetData() { }
-
-    /// <summary>
-    /// Flush all unmanaged data when the tab is destroyed;
-    /// </summary>
-    public virtual void FlushData() { }
-
-
 
     public abstract void ShowGUI();
 }
@@ -64,8 +56,6 @@ public class ModelAssetDatabaseReaderTabModel : ModelAssetDatabaseReaderTab {
         notes = null;
         editNotes = false;
     }
-
-    public override void FlushData() => Reader.CleanObjectPreview();
 
     /// <summary>
     /// Updates the Model Notes and disables hot control to properly update the Text Area;
@@ -262,7 +252,6 @@ public class ModelAssetDatabaseReaderTabModel : ModelAssetDatabaseReaderTab {
                             }
                             GUI.color = Color.white;
                         }
-
                     }
                 }
             }
@@ -306,13 +295,14 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
     public ModelAssetDatabaseReaderTabMeshes(ModelAssetDatabaseReader Reader) : base(Reader) { }
 
     public override void ResetData() {
+        CleanMeshPreview();
         SelectedMesh = null;
         SelectedSubmeshIndex = 0;
     }
 
-    private void SetSelectedMesh(Mesh mesh, GameObject gameObject, Renderer renderer) {
+    public void SetSelectedMesh(Mesh mesh, Renderer renderer) {
         ResetData();
-        SelectedMesh = new SelectedMeshProperties(mesh, gameObject, renderer);
+        SelectedMesh = new SelectedMeshProperties(mesh, renderer.gameObject, renderer);
         LocalVertexCount = mesh.vertexCount;
         LocalTriangleCount = mesh.triangles.Length;
     }
@@ -321,8 +311,8 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
         CleanMeshPreview();
         Reader.CleanObjectPreview();
         if (index > 0) {
-            CreateDummyGameObject(SelectedMesh.gameObject);
-            Renderer renderer = DummyGameObject.GetComponent<Renderer>();
+            Reader.CreateDummyGameObject(SelectedMesh.gameObject);
+            Renderer renderer = Reader.DummyGameObject.GetComponent<Renderer>();
             Material[] arr = renderer.sharedMaterials;
             arr[index - 1] = Reader.CustomTextures.highlight;
             renderer.sharedMaterials = arr;
@@ -376,7 +366,7 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
                                     .ShowPreviewSettings(meshPreview,
                                                          GUIUtility.GUIToScreenRect(GUILayoutUtility.GetLastRect()));
                             }
-                        } else Reader.DrawObjectPreviewEditor(DummyGameObject, 192, 192);
+                        } else Reader.DrawObjectPreviewEditor(Reader.DummyGameObject, 192, 192);
                         using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
                             if (GUILayout.Button("Open In Materials")) Reader.SwitchToMaterials(SelectedMesh.renderer);
                         }
@@ -440,8 +430,7 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
     /// Displays a horizontal scrollview with all the meshes available in the model to select from;
     /// </summary>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    /// <param name="selectMaterialRenderer"> Whether the button is being used in the Materials Section; </param>
-    private void DrawMeshSearchArea(float scaleMultiplier = 1f, bool selectMaterialRenderer = false) {
+    private void DrawMeshSearchArea(float scaleMultiplier = 1f) {
 
         EditorUtils.DrawSeparatorLines("All Meshes", true);
 
@@ -452,13 +441,28 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
             using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
                 foreach (MeshRendererPair mrp in Reader.MeshRenderers) {
                     if (mrp.renderer is SkinnedMeshRenderer) {
-                        Reader.DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
-                                                mrp.renderer.gameObject, mrp.renderer, scaleMultiplier, selectMaterialRenderer);
+                        DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
+                                                 mrp.renderer, scaleMultiplier);
                     } else if (mrp.renderer is MeshRenderer) {
-                        Reader.DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer.gameObject, mrp.renderer, scaleMultiplier, selectMaterialRenderer);
+                        DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer, scaleMultiplier);
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Draw a button to select a given submesh;
+    /// </summary>
+    /// <param name="mesh"> Mesh that the button will select; </param>
+    /// <param name="renderer"> Renderer containing the mesh; </param>
+    /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
+    private void DrawMeshSelectionButton(Mesh mesh, Renderer renderer, float scaleMultiplier) {
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
+            EditorUtils.DrawTexture(Reader.MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
+            if (SelectedMesh != null && SelectedMesh.mesh == mesh) {
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
+            } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) SetSelectedMesh(mesh, renderer);
         }
     }
 
@@ -480,7 +484,7 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
 
 public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab {
 
-    private ModelImporter Model { get { return Reader.Model; } }
+    public ModelImporter Model { get { return Reader.Model; } }
 
     /// <summary> Dictionary mapping the current material slot selection; </summary>
     public Dictionary<string, Material> StaticMaterialSlots { get; private set; }
@@ -637,14 +641,14 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     /// </summary>
     /// <param name="gameObject"> GameObject showcasing the material; </param>
     /// <param name="renderer"> Renderer holding the showcased mesh; </param>
-    private void SetSelectedRenderer(GameObject gameObject, Renderer renderer) {
+    public void SetSelectedRenderer(Renderer renderer) {
         Reader.CleanObjectPreview();
         if (selectedMaterial == null) {
-            selectedMaterial = new SelectedMaterialProperties(gameObject, renderer);
+            selectedMaterial = new SelectedMaterialProperties(renderer.gameObject, renderer);
         } else if (selectedMaterial.renderer != renderer) {
-            selectedMaterial.gameObject = gameObject;
+            selectedMaterial.gameObject = renderer.gameObject;
             selectedMaterial.renderer = renderer;
-        } CreateDummyGameObject(gameObject);
+        } Reader.CreateDummyGameObject(renderer.gameObject);
     }
 
     /// <summary>
@@ -669,7 +673,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     public void UpdateObjectPreview() {
         Reader.CleanObjectPreview();
         if (selectedMaterial != null && selectedMaterial.gameObject is not null) {
-            CreateDummyGameObject(selectedMaterial.gameObject);
+            Reader.CreateDummyGameObject(selectedMaterial.gameObject);
         }
     }
 
@@ -693,7 +697,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
 
 
         /// <summary> GUI Display for the Materials Section </summary>
-    public void ShowMaterialsSection() {
+    public override void ShowGUI() {
 
         if (selectedMaterial != null && selectedMaterial.material != null) {
             DrawMaterialInspector(selectedMaterial.material);
@@ -729,7 +733,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(200), GUILayout.Height(200))) {
                         GUILayout.Label("Material Preview", UIStyles.CenteredLabel);
                         if (selectedMaterial != null && selectedMaterial.renderer != null) {
-                            Reader.DrawObjectPreviewEditor(DummyGameObject, 192, 192);
+                            Reader.DrawObjectPreviewEditor(Reader.DummyGameObject, 192, 192);
                             if (GUILayout.Button("Update Preview")) {
                                 UpdateObjectPreview();
                             }
@@ -751,7 +755,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
 
                     switch (materialSearchMode) {
                         case MaterialSearchMode.Mesh:
-                            DrawMeshSearchArea(0.76f, true);
+                            DrawMeshSearchArea(0.76f);
                             using (new EditorGUILayout.HorizontalScope()) {
                                 DrawAvailableMaterials(0.76f);
                                 DrawMaterialSlots();
@@ -822,7 +826,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                                                           GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(110))) {
                 topMaterialScroll = view.scrollPosition;
                 using (new EditorGUILayout.HorizontalScope(GUILayout.Width(PANEL_WIDTH), GUILayout.Height(110))) {
-                    foreach (Material material in Reader.materialDict.Keys) DrawMaterialButton(material, scaleMultiplier);
+                    foreach (Material material in Reader.MaterialDict.Keys) DrawMaterialButton(material, scaleMultiplier);
                 }
             }
         }
@@ -853,6 +857,31 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     }
 
     /// <summary>
+    /// Displays a horizontal scrollview with all the meshes available in the model to select from;
+    /// </summary>
+    /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
+    private void DrawMeshSearchArea(float scaleMultiplier = 1f) {
+
+        EditorUtils.DrawSeparatorLines("All Meshes", true);
+
+        using (var view = new EditorGUILayout.ScrollViewScope(topMaterialScroll, true, false,
+                                                              GUI.skin.horizontalScrollbar, GUIStyle.none,
+                                                              GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
+            topMaterialScroll = view.scrollPosition;
+            using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
+                foreach (MeshRendererPair mrp in Reader.MeshRenderers) {
+                    if (mrp.renderer is SkinnedMeshRenderer) {
+                        DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
+                                                 mrp.renderer, scaleMultiplier);
+                    } else if (mrp.renderer is MeshRenderer) {
+                        DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer, scaleMultiplier);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Draws the 'Available Meshes' scrollview at the bottom left;
     /// <br></br> Drawn in Material Search Mode;
     /// </summary>
@@ -869,14 +898,29 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                         foreach (MeshRendererPair mrp in Reader.MaterialDict[selectedMaterial.material]) {
                             if (mrp.renderer is SkinnedMeshRenderer) {
                                 DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
-                                                        mrp.renderer.gameObject, mrp.renderer, scaleMultiplier, true);
+                                                         mrp.renderer, scaleMultiplier);
                             } else if (mrp.renderer is MeshRenderer) {
-                                DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer.gameObject, mrp.renderer, scaleMultiplier, true);
+                                DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer, scaleMultiplier);
                             }
                         }
                     }
                 }
             } else EditorUtils.DrawScopeCenteredText("No Material Selected");
+        }
+    }
+
+    /// <summary>
+    /// Draw a button to select a given submesh;
+    /// </summary>
+    /// <param name="mesh"> Mesh that the button will select; </param>
+    /// <param name="renderer"> Renderer containing the mesh; </param>
+    /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
+    private void DrawMeshSelectionButton(Mesh mesh, Renderer renderer, float scaleMultiplier) {
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
+            EditorUtils.DrawTexture(Reader.MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
+            if (selectedMaterial != null && selectedMaterial.renderer == renderer) {
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
+            } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) SetSelectedRenderer(renderer);
         }
     }
 

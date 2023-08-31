@@ -6,13 +6,13 @@ using CJUtils;
 /// <summary> Shows an Editor Window with a GUI that compares the Material Reader with the Material Editor override; </summary>
 public class ModelAssetDatabaseMaterialHelper : EditorWindow {
 
-    public static ModelAssetDatabaseMaterialHelper ShowWindow(ModelAssetDatabaseReader reader) {
+    public static ModelAssetDatabaseMaterialHelper ShowWindow(ModelAssetDatabaseReaderTabMaterials reader) {
         var window = GetWindow<ModelAssetDatabaseMaterialHelper>("Material Save Guide", new System.Type[] { typeof(ModelAssetDatabaseGUI) });
         window.reader = reader;
         return window;
     }
 
-    private ModelAssetDatabaseReader reader;
+    private ModelAssetDatabaseReaderTabMaterials reader;
 
     private Dictionary<string, Material> staticDict { get { return reader.StaticMaterialSlots; } }
 

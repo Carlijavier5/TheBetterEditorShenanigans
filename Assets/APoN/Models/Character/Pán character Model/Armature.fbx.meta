@@ -16,13 +16,12 @@ ModelImporter:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: M_Body
-    second: {fileID: 4472937821682961324, guid: 12f0ed80d834e6246b96b9cf113fedc3,
-      type: 3}
+    second: {fileID: 2100000, guid: 7ab977a21c92388468ee65ad1c0e5a78, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: M_Legs
-    second: {fileID: 2100000, guid: 2685df3afda57584e9b5abb5f0267496, type: 2}
+    second: {fileID: 2100000, guid: d9af0354996438b4a906603cded6bd0f, type: 2}
   materials:
     materialImportMode: 2
     materialName: 1
