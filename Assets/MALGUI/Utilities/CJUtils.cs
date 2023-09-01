@@ -58,7 +58,7 @@ namespace CJUtils {
         /// Draws a centered Label wrapped around a WindowBox scope;
         /// </summary>
         /// <param name="text"> Text to display on the label; </param>
-        public static void DrawWindowBoxLabel(string text, params GUILayoutOption[] options) {
+        public static void WindowBoxLabel(string text, params GUILayoutOption[] options) {
             using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
                 GUILayout.Label(text, UIStyles.CenteredLabelBold, options);
             }

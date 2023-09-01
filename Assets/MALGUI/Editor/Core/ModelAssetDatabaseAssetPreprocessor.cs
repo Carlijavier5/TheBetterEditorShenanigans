@@ -371,9 +371,7 @@ public static class ModelAssetDatabaseAssetPreprocessor {
         PreservedMaterialMap.Remove(key);
     }
 
-    public static void CleanPreview() {
-        if (preview is not null) preview.CleanUp(ref preview);
-    }
+    public static void CleanPreview() => Object.DestroyImmediate(preview);
 
     #endregion
 }

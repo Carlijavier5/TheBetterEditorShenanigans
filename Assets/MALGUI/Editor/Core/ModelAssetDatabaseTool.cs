@@ -29,7 +29,7 @@ public abstract class ModelAssetDatabaseTool : Object {
     public ModelAssetDatabaseTool() => InitializeData();
 
     /// Required Tool GUI;
-    
+
     /// <summary>
     /// Override this method to implement the tool's toolbar; 
     /// </summary>
@@ -37,5 +37,5 @@ public abstract class ModelAssetDatabaseTool : Object {
     /// <summary>
     /// Override this method to implement the tool's GUI; 
     /// </summary>
-    public virtual void ShowGUI() { }
+    public abstract void ShowGUI();
 }

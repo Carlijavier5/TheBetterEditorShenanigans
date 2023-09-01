@@ -35,7 +35,7 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
     private GameObject previewTarget;
     private GenericPreview preview;
 
-    private MaterialEditorBundle materialEditorBundle;
+    private MaterialEditorBundle materialEditor;
 
     private ModelAssetLibraryAssets customPrefabs;
 
@@ -98,24 +98,20 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
         EditedMaterial = new ManagedMaterialData(path, material);
     }
 
-    private void ExtractMaterialEditor() {
-        if (!ReferenceEquals(materialEditorBundle, null)) return;
-        materialEditorBundle = new MaterialEditorBundle(EditedMaterial.material);
-    }
+    /// <summary>
+    /// Creates a material editor if one is not available;
+    /// </summary>
+    private void ExtractMaterialEditor() => materialEditor = MaterialEditorBundle.CreateBundle(EditedMaterial.material);
 
     /// <summary>
     /// A shorthand for drawing the extracted editor;
     /// </summary>
-    private void DrawMaterialEditor() => materialEditorBundle.DrawEditor();
+    private void DrawMaterialEditor() => materialEditor.DrawEditor();
 
     /// <summary>
     /// Clean the material editor;
     /// </summary>
-    private void CleanMaterialEditor() {
-        if (!ReferenceEquals(materialEditorBundle, null)) {
-            materialEditorBundle.CleanUp(ref materialEditorBundle);
-        }
-    }
+    private void CleanMaterialEditor() => DestroyImmediate(materialEditor);
 
     #endregion
 
@@ -168,7 +164,7 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
             EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
         } else {
             float panelWidth = 620;
-            ExtractMaterialEditor();
+            if (materialEditor == null) ExtractMaterialEditor();
             using (new EditorGUILayout.HorizontalScope()) {
                 /// Editor side of the Editor Tab;
                 using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2))) {
@@ -196,7 +192,7 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
                     }
                 } /// Preview side of the Editor Tab;
                 using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
-                    EditorUtils.DrawWindowBoxLabel("Material Preview");
+                    EditorUtils.WindowBoxLabel("Material Preview");
                     DrawMaterialPreview();
                     using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
                         DrawMaterialPreviewOptions();
@@ -207,17 +203,17 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
     }
 
     private void ReplaceMaterialShader(Shader shader) {
-        if (EditedMaterial != null && materialEditorBundle is not null) {
+        if (EditedMaterial != null && materialEditor is not null) {
             if (EditedMaterial.material.shader == shader) return;
-            materialEditorBundle.editor.SetShader(shader);
+            materialEditor.editor.SetShader(shader);
         } else Debug.LogWarning("Shader could not be set;");
     }
 
     private void DrawMaterialPreview() {
         Rect rect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
-        if (preview is null) {
+        if (preview == null) {
             if (previewTarget != null) {
-                preview = new GenericPreview(previewTarget);
+                preview = GenericPreview.CreatePreview(previewTarget);
             } else EditorUtils.DrawScopeCenteredText("Select a Preview Object");
         } else {
             preview.preview.DrawPreview(rect);
@@ -265,9 +261,7 @@ public class ModelAssetDatabaseMaterialManager : ModelAssetDatabaseTool {
         } CleanPreview();
     }
 
-    private void CleanPreview() {
-        if (!ReferenceEquals(preview, null)) preview.CleanUp(ref preview);
-    }
+    private void CleanPreview() => DestroyImmediate(preview);
 
     private void CleanPreviewTarget() => DestroyImmediate(previewTarget);
 

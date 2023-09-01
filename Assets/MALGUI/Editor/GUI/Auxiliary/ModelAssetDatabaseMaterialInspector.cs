@@ -9,7 +9,7 @@ public class ModelAssetDatabaseMaterialInspector : EditorWindow {
     public static ModelAssetDatabaseMaterialInspector ShowWindow(Material material, System.Action<bool> onChangeCallback) {
         var window = GetWindow<ModelAssetDatabaseMaterialInspector>("Material Inspector", new System.Type[] { typeof(ModelAssetDatabaseGUI) });
         window.CleanEditor();
-        window.materialInspector = new MaterialEditorBundle(material);
+        window.materialInspector = MaterialEditorBundle.CreateBundle(material);
         window.onChangeCallback = onChangeCallback;
         window.isDefault = !AssetDatabase.GetAssetPath(material).StartsWith("Assets");
         return window;
@@ -38,7 +38,7 @@ public class ModelAssetDatabaseMaterialInspector : EditorWindow {
                                                     "If you wish to edit default materials, enable the corresponding option in the Configuration Tab;",
                                                     MessageType.Info);
                         } GUI.enabled = false;
-                    } EditorUtils.DrawWindowBoxLabel("Material Inspector");
+                    } EditorUtils.WindowBoxLabel("Material Inspector");
                     using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                         using (var view = new EditorGUILayout.ScrollViewScope(scrollPosition)) {
                             scrollPosition = view.scrollPosition;
@@ -59,7 +59,5 @@ public class ModelAssetDatabaseMaterialInspector : EditorWindow {
     /// <summary>
     /// Dispose of the Material Editor;
     /// </summary>
-    private void CleanEditor() {
-        if (materialInspector is not null) materialInspector.CleanUp(ref materialInspector);
-    }
+    private void CleanEditor() => DestroyImmediate(materialInspector);
 }

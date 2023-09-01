@@ -113,7 +113,7 @@ public class ModelAssetDatabaseGUI : EditorWindow {
 
     void OnGUI() {
         using (new EditorGUILayout.HorizontalScope()) {
-            using (new EditorGUILayout.VerticalScope(GUILayout.MinWidth(200), GUILayout.MaxWidth(220))) {
+            using (new EditorGUILayout.VerticalScope(GUILayout.Width(200))) {
                 hierarchyBuilder.DrawSearchbar();
                 using (var leftScope = new EditorGUILayout.ScrollViewScope(directoryScroll,
                                                                      false, true, GUI.skin.horizontalScrollbar,
@@ -181,8 +181,9 @@ public class ModelAssetDatabaseGUI : EditorWindow {
     private void FlushGlobalData() {
         foreach (ModelAssetDatabaseTool subtool in Subtools) subtool.FlushData();
         //ModelAssetLibrary.UnloadDictionaries();
-        toolMode = 0;
+        Resources.UnloadUnusedAssets();
         SetHighRepaintFrequency(false);
+        toolMode = 0;
     }
 
     public void SetHighRepaintFrequency(bool useHigh) {

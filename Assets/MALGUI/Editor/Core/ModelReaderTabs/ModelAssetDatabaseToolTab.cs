@@ -1,21 +1,30 @@
+using CJUtils;
+using MADUtils;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
-using MADUtils;
-using CJUtils;
-using static ModelAssetDatabaseReader;
 using static ModelAssetDatabaseGUI;
+using static ModelAssetDatabaseReader;
 
-public abstract class ModelAssetDatabaseReaderTab : Object {
+public abstract class ModelAssetDatabaseToolTab : ScriptableObject {
 
     /// <summary> Every tab will be managed by a parent tool, and will have a handy reference to it; </summary>
-    protected readonly ModelAssetDatabaseReader Reader;
+    protected ModelAssetDatabaseTool Tool;
+
+    protected const string INVALID_MANAGER = "You attempted to create a new tab without a proper manager to handle it! The tab was not instantiated;";
 
     /// <summary>
     /// Initialize base tab data when constructing the tab;
     /// </summary>
-    public ModelAssetDatabaseReaderTab(ModelAssetDatabaseReader Reader) { this.Reader = Reader; }
+    public static ModelAssetDatabaseToolTab CreateTab<T>(ModelAssetDatabaseTool tool) where T : ModelAssetDatabaseToolTab {
+        var tab = CreateInstance<T>();
+        tab.Tool = tool;
+        tab.InitializeData();
+        return tab;
+    }
+
+    protected abstract void InitializeData();
 
     /// <summary>
     /// Load the corresponding Model when selecting the tab 
@@ -27,7 +36,20 @@ public abstract class ModelAssetDatabaseReaderTab : Object {
     /// </summary>
     public virtual void ResetData() { }
 
+    void OnDisable() => ResetData();
+
     public abstract void ShowGUI();
+}
+
+public abstract class ModelAssetDatabaseReaderTab : ModelAssetDatabaseToolTab {
+
+    protected ModelAssetDatabaseReader Reader;
+
+    protected override void InitializeData() {
+        if (base.Tool is ModelAssetDatabaseReader) {
+            Reader = base.Tool as ModelAssetDatabaseReader;
+        } else Debug.LogError(INVALID_MANAGER);
+    }
 }
 
 public class ModelAssetDatabaseReaderTabModel : ModelAssetDatabaseReaderTab {
@@ -44,8 +66,6 @@ public class ModelAssetDatabaseReaderTabModel : ModelAssetDatabaseReaderTab {
     private static string notes;
 
     private static Vector2 noteScroll;
-
-    public ModelAssetDatabaseReaderTabModel(ModelAssetDatabaseReader Reader) : base(Reader) { }
 
     public override void LoadData(string path) {
         FileInfo = new FileInfo(path);
@@ -79,7 +99,7 @@ public class ModelAssetDatabaseReaderTabModel : ModelAssetDatabaseReaderTab {
             using (new EditorGUILayout.VerticalScope(GUILayout.Width(200), GUILayout.Height(200))) {
                 using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(192), GUILayout.Height(192))) {
                     GUILayout.Label("Model Preview", UIStyles.CenteredLabel);
-                    Reader.DrawObjectPreviewEditor(Reader.RootPrefab, 192, 192);
+                    Reader.DrawObjectPreviewEditor(Reader.RootPrefab, GUILayout.ExpandWidth(true), GUILayout.Height(192));
 
                     using (new EditorGUILayout.HorizontalScope()) {
                         GUILayout.FlexibleSpace();
@@ -279,44 +299,43 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
             this.renderer = renderer;
         }
     } /// <summary> Relevant properties of the Mesh selected in the GUI; </summary>
-    private SelectedMeshProperties SelectedMesh;
+    private SelectedMeshProperties selectedMesh;
     /// <summary> Index of the selected SubMesh in the GUI (+1); </summary>
-    private int SelectedSubmeshIndex;
+    private int selectedSubmeshIndex;
 
     /// <summary> Vertex count of a single mesh; </summary>
-    private int LocalVertexCount;
+    private int localVertexCount;
 
     /// <summary> Triangle count of a single mesh; </summary>
-    private int LocalTriangleCount;
+    private int localTriangleCount;
 
     private static Vector2 meshUpperScroll;
     private static Vector2 meshLowerScroll;
 
-    public ModelAssetDatabaseReaderTabMeshes(ModelAssetDatabaseReader Reader) : base(Reader) { }
-
     public override void ResetData() {
         CleanMeshPreview();
-        SelectedMesh = null;
-        SelectedSubmeshIndex = 0;
+        selectedMesh = null;
+        selectedSubmeshIndex = 0;
     }
 
     public void SetSelectedMesh(Mesh mesh, Renderer renderer) {
         ResetData();
-        SelectedMesh = new SelectedMeshProperties(mesh, renderer.gameObject, renderer);
-        LocalVertexCount = mesh.vertexCount;
-        LocalTriangleCount = mesh.triangles.Length;
+        selectedMesh = new SelectedMeshProperties(mesh, renderer.gameObject, renderer);
+        localVertexCount = mesh.vertexCount;
+        localTriangleCount = mesh.triangles.Length;
     }
 
     private void SetSelectedSubMesh(int index) {
-        CleanMeshPreview();
         Reader.CleanObjectPreview();
         if (index > 0) {
-            Reader.CreateDummyGameObject(SelectedMesh.gameObject);
+            Reader.CreateDummyGameObject(selectedMesh.gameObject);
             Renderer renderer = Reader.DummyGameObject.GetComponent<Renderer>();
             Material[] arr = renderer.sharedMaterials;
-            arr[index - 1] = Reader.CustomTextures.highlight;
+            for (int i = 0; i < arr.Length; i++) {
+                if (i != index - 1) arr[i] = Reader.CustomTextures.defaultMaterial;
+            } arr[index - 1] = Reader.CustomTextures.highlight;
             renderer.sharedMaterials = arr;
-        } SelectedSubmeshIndex = index;
+        } selectedSubmeshIndex = index;
     }
 
     /// <summary>
@@ -325,8 +344,8 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
     /// <param name="mesh"> Mesh to draw the preview for; </param>
     /// <param name="width"> Width of the Preview's Rect; </param>
     /// <param name="height"> Height of the Preview's Rect; </param>
-    private void DrawMeshPreviewEditor(Mesh mesh, float width, float height) {
-        Rect rect = GUILayoutUtility.GetRect(width, height);
+    private void DrawMeshPreview(Mesh mesh, params GUILayoutOption[] options) {
+        Rect rect = EditorGUILayout.GetControlRect(options);
         if (meshPreview == null) {
             meshPreview = new MeshPreview(mesh);
         } else {
@@ -357,29 +376,34 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
             using (new EditorGUILayout.VerticalScope(GUILayout.Width(200), GUILayout.Height(200))) {
                 using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(192), GUILayout.Height(192))) {
                     GUILayout.Label("Mesh Preview", UIStyles.CenteredLabel);
-                    if (SelectedMesh != null) {
-                        if (SelectedSubmeshIndex == 0) {
-                            DrawMeshPreviewEditor(SelectedMesh.mesh, 192, 192);
-                            GUIContent settingsContent = new GUIContent(" Preview Settings", EditorUtils.FetchIcon("d_Mesh Icon"));
+                    if (selectedMesh != null) {
+                        GUIContent settingsContent = new GUIContent(" Preview Settings", EditorUtils.FetchIcon("d_Mesh Icon"));
+                        if (selectedSubmeshIndex == 0) {
+                            DrawMeshPreview(selectedMesh.mesh, GUILayout.ExpandWidth(true), GUILayout.Height(192));
+
                             if (GUILayout.Button(settingsContent, GUILayout.MaxHeight(19))) {
                                 ModelAssetLibraryExtraMeshPreview
                                     .ShowPreviewSettings(meshPreview,
                                                          GUIUtility.GUIToScreenRect(GUILayoutUtility.GetLastRect()));
                             }
-                        } else Reader.DrawObjectPreviewEditor(Reader.DummyGameObject, 192, 192);
-                        using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
-                            if (GUILayout.Button("Open In Materials")) Reader.SwitchToMaterials(SelectedMesh.renderer);
+                        } else {
+                            Reader.DrawObjectPreviewEditor(Reader.DummyGameObject, GUILayout.ExpandWidth(true), GUILayout.Height(192));
+                            GUI.enabled = false;
+                            GUILayout.Button(settingsContent, GUILayout.MaxHeight(19));
+                            GUI.enabled = true;
+                        } using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
+                            if (GUILayout.Button("Open In Materials")) Reader.SwitchToMaterials(selectedMesh.renderer);
                         }
-                    } else EditorUtils.DrawTexture(Reader.CustomTextures.noMeshPreview, 192, 192);
+                    } else EditorUtils.DrawTexture(Reader.CustomTextures.noMeshPreview, 206, 206);
 
                     using (new EditorGUILayout.HorizontalScope()) {
                         GUILayout.FlexibleSpace();
-                        using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(196), GUILayout.Height(60))) {
-                            if (SelectedMesh != null) {
+                        using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(206), GUILayout.Height(60))) {
+                            if (selectedMesh != null) {
                                 GUILayout.Label("Mesh Details", UIStyles.CenteredLabel);
                                 GUILayout.FlexibleSpace();
-                                EditorUtils.DrawLabelPair("Vertex Count:", LocalVertexCount.ToString());
-                                EditorUtils.DrawLabelPair("Triangle Count: ", LocalTriangleCount.ToString());
+                                EditorUtils.DrawLabelPair("Vertex Count:", localVertexCount.ToString());
+                                EditorUtils.DrawLabelPair("Triangle Count: ", localTriangleCount.ToString());
                             } else {
                                 EditorUtils.DrawScopeCenteredText("No Mesh Selected");
                             }
@@ -390,15 +414,15 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
 
             using (new EditorGUILayout.VerticalScope(GUILayout.MaxWidth(PANEL_WIDTH))) {
                 EditorUtils.DrawSeparatorLines("Renderer Details", true);
-                if (SelectedMesh != null) {
+                if (selectedMesh != null) {
                     using (new EditorGUILayout.HorizontalScope()) {
-                        EditorUtils.DrawLabelPair("Skinned Mesh:", SelectedMesh.renderer is SkinnedMeshRenderer ? "Yes" : "No");
+                        EditorUtils.DrawLabelPair("Skinned Mesh:", selectedMesh.renderer is SkinnedMeshRenderer ? "Yes" : "No");
                         GUILayout.FlexibleSpace();
-                        EditorUtils.DrawLabelPair("No. Of Submeshes:", SelectedMesh.mesh.subMeshCount.ToString());
+                        EditorUtils.DrawLabelPair("No. Of Submeshes:", selectedMesh.mesh.subMeshCount.ToString());
                         GUILayout.FlexibleSpace();
-                        EditorUtils.DrawLabelPair("Materials Assigned:", SelectedMesh.renderer.sharedMaterials.Length.ToString());
+                        EditorUtils.DrawLabelPair("Materials Assigned:", selectedMesh.renderer.sharedMaterials.Length.ToString());
                     } GUIContent propertiesContent = new GUIContent(" Open Mesh Properties", EditorUtils.FetchIcon("Settings"));
-                    if (GUILayout.Button(propertiesContent, GUILayout.MaxHeight(19))) EditorUtils.OpenAssetProperties(SelectedMesh.mesh);
+                    if (GUILayout.Button(propertiesContent, GUILayout.MaxHeight(19))) EditorUtils.OpenAssetProperties(selectedMesh.mesh);
                 } else {
                     EditorGUILayout.Separator();
                     GUILayout.Label("No Mesh Selected", UIStyles.CenteredLabelBold);
@@ -406,22 +430,31 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
                 }
 
                 EditorUtils.DrawSeparatorLines("Submeshes", true);
-                if (SelectedMesh != null) {
-                    using (var view = new EditorGUILayout.ScrollViewScope(meshUpperScroll, true, false,
-                                                                      GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar,
-                                                                      GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(53))) {
-                        meshUpperScroll = view.scrollPosition;
-                        using (new EditorGUILayout.HorizontalScope()) {
-                            for (int i = 0; i < SelectedMesh.mesh.subMeshCount; i++) DrawSubMeshSelectionButton(i + 1);
+                using (new EditorGUILayout.HorizontalScope()) {
+                    if (selectedMesh != null) {
+                        using (var view = new EditorGUILayout.ScrollViewScope(meshUpperScroll, true, false,
+                                                                          GUI.skin.horizontalScrollbar, GUIStyle.none,
+                                                                          GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(56))) {
+                            meshUpperScroll = view.scrollPosition;
+                            using (new EditorGUILayout.HorizontalScope()) {
+                                for (int i = 0; i < selectedMesh.mesh.subMeshCount; i++) DrawSubMeshSelectionButton(i + 1);
+                            }
+                        } using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.ExpandWidth(false), GUILayout.MaxHeight(54))) {
+                            using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+                                GUILayout.Box("Highlight Color", UIStyles.CenteredLabelBold);
+                            } GUILayout.FlexibleSpace();
+                            Color color = EditorGUILayout.ColorField(Reader.CustomTextures.highlight.color, GUILayout.MaxWidth(80));
+                            if (color != Reader.CustomTextures.highlight.color) {
+                                Reader.CustomTextures.highlight.color = color;
+                                SetSelectedSubMesh(selectedSubmeshIndex);
+                            } GUILayout.FlexibleSpace();
                         }
+                    } else {
+                        EditorGUILayout.Separator();
+                        GUILayout.Label("No Mesh Selected", UIStyles.CenteredLabelBold);
+                        EditorGUILayout.Separator();
                     }
-                } else {
-                    EditorGUILayout.Separator();
-                    GUILayout.Label("No Mesh Selected", UIStyles.CenteredLabelBold);
-                    EditorGUILayout.Separator();
-                }
-
-                DrawMeshSearchArea();
+                } DrawMeshSearchArea();
             }
         }
     }
@@ -460,9 +493,11 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
     private void DrawMeshSelectionButton(Mesh mesh, Renderer renderer, float scaleMultiplier) {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(Reader.MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
-            if (SelectedMesh != null && SelectedMesh.mesh == mesh) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
-            } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) SetSelectedMesh(mesh, renderer);
+            if (selectedMesh != null && selectedMesh.mesh == mesh) {
+                GUILayout.Label("Selected", new GUIStyle(UIStyles.CenteredLabelBold) { contentOffset = new Vector2(0, -2) },
+                                GUILayout.Width(80 * scaleMultiplier), GUILayout.Height(14 * scaleMultiplier));
+            } else if (GUILayout.Button("Open", GUILayout.Width(80 * scaleMultiplier), 
+                                        GUILayout.Height(18 * scaleMultiplier))) SetSelectedMesh(mesh, renderer);
         }
     }
 
@@ -471,7 +506,7 @@ public class ModelAssetDatabaseReaderTabMeshes : ModelAssetDatabaseReaderTab {
     /// </summary>
     /// <param name="index"> Index of the submesh to select; </param>
     private void DrawSubMeshSelectionButton(int index) {
-        bool isSelected = index == SelectedSubmeshIndex;
+        bool isSelected = index == selectedSubmeshIndex;
         GUIStyle buttonStyle = isSelected ? EditorStyles.helpBox : GUI.skin.box;
         using (new EditorGUILayout.VerticalScope(buttonStyle, GUILayout.MaxWidth(35), GUILayout.MaxHeight(35))) {
             if (GUILayout.Button(index.ToString(), UIStyles.TextureButton, GUILayout.MaxWidth(35), GUILayout.MaxHeight(35))) {
@@ -529,6 +564,9 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
 
     /// <summary> String to display on material swap undoes; </summary>
     private const string UNDO_MATERIAL_CHANGE = "Material Swap";
+    
+    /// <summary> Whether to show the whole model or a selected mesh in the material preview; </summary>
+    private bool useModelPreview;
 
     /// <summary> Potential search modes for the Materials Section; </summary>
     private enum MaterialSearchMode {
@@ -543,14 +581,19 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     private static Vector2 leftMaterialScroll;
     private static Vector2 rightMaterialScroll;
 
-    public ModelAssetDatabaseReaderTabMaterials(ModelAssetDatabaseReader Reader) : base(Reader) {
-
+    protected override void InitializeData() {
+        base.InitializeData();
+        Reader.OnModelReimport += UpdateObjectPreview;
     }
 
-    public override void LoadData(string path) => LoadInternalMaterialMap();
+    public override void LoadData(string path) {
+        LoadInternalMaterialMap();
+        useModelPreview = true;
+    }
 
     public override void ResetData() {
         /// Materials Section Dependencies;
+        useModelPreview = true;
         selectedMaterial = null;
         if (hasStaticSlotChanges) {
             if (ModelAssetLibraryModalMaterialChanges.ConfirmMaterialChanges()) {
@@ -649,6 +692,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
             selectedMaterial.gameObject = renderer.gameObject;
             selectedMaterial.renderer = renderer;
         } Reader.CreateDummyGameObject(renderer.gameObject);
+        SetPreviewToModel(false);
     }
 
     /// <summary>
@@ -672,9 +716,16 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     /// </summary>
     public void UpdateObjectPreview() {
         Reader.CleanObjectPreview();
-        if (selectedMaterial != null && selectedMaterial.gameObject is not null) {
-            Reader.CreateDummyGameObject(selectedMaterial.gameObject);
+        if (!useModelPreview) {
+            if (selectedMaterial != null && selectedMaterial.gameObject != null) {
+                Reader.CreateDummyGameObject(selectedMaterial.gameObject);
+            } else Debug.LogWarning("Whoops, a preview of the chosen Mesh Object couldn't be created. And it is likely your fault, for the record;");
         }
+    }
+
+    private void SetPreviewToModel(bool useModelPreview) {
+        this.useModelPreview = useModelPreview;
+        UpdateObjectPreview();
     }
 
     /// <summary>
@@ -732,12 +783,20 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                 using (new EditorGUILayout.VerticalScope(GUILayout.Width(200), GUILayout.Height(200))) {
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box, GUILayout.Width(200), GUILayout.Height(200))) {
                         GUILayout.Label("Material Preview", UIStyles.CenteredLabel);
-                        if (selectedMaterial != null && selectedMaterial.renderer != null) {
-                            Reader.DrawObjectPreviewEditor(Reader.DummyGameObject, 192, 192);
-                            if (GUILayout.Button("Update Preview")) {
-                                UpdateObjectPreview();
-                            }
-                        } else EditorUtils.DrawTexture(Reader.CustomTextures.noMaterialPreview, 192, 192);
+                        Reader.DrawObjectPreviewEditor(useModelPreview ? Reader.RootPrefab : Reader.DummyGameObject, 
+                                                       GUILayout.ExpandWidth(true), GUILayout.Height(192));
+                        using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
+                            if (GUILayout.Button(new GUIContent(" Model", EditorUtils.FetchIcon("d_PrefabModel Icon")), useModelPreview
+                                                 ? UIStyles.SelectedToolbar : EditorStyles.toolbarButton,
+                                                 GUILayout.Width(100), GUILayout.Height(20))) SetPreviewToModel(true);
+                            if (GUILayout.Button(new GUIContent(EditorUtils.FetchIcon("Refresh")),
+                                                     EditorStyles.toolbarButton, GUILayout.Height(20))) UpdateObjectPreview();
+                            if (selectedMaterial == null || selectedMaterial.renderer == null) GUI.enabled = false;
+                            if (GUILayout.Button(new GUIContent(" Mesh", EditorUtils.FetchIcon("d_MeshRenderer Icon")), useModelPreview
+                                                 ? EditorStyles.toolbarButton : UIStyles.SelectedToolbar,
+                                                 GUILayout.Width(100), GUILayout.Height(20))) SetPreviewToModel(false);
+                            GUI.enabled = true;
+                        }
                     }
 
                     using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
@@ -852,7 +911,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                         }
                     }
                 }
-            } else EditorUtils.DrawScopeCenteredText("No Material Selected");
+            } else EditorUtils.DrawScopeCenteredText("No Mesh Selected");
         }
     }
 
@@ -863,7 +922,6 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     private void DrawMeshSearchArea(float scaleMultiplier = 1f) {
 
         EditorUtils.DrawSeparatorLines("All Meshes", true);
-
         using (var view = new EditorGUILayout.ScrollViewScope(topMaterialScroll, true, false,
                                                               GUI.skin.horizontalScrollbar, GUIStyle.none,
                                                               GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
@@ -871,10 +929,9 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
             using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(PANEL_WIDTH), GUILayout.MaxHeight(scaleMultiplier == 1 ? 130 : 110))) {
                 foreach (MeshRendererPair mrp in Reader.MeshRenderers) {
                     if (mrp.renderer is SkinnedMeshRenderer) {
-                        DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
-                                                 mrp.renderer, scaleMultiplier);
+                        DrawMeshSelectionButton(mrp.renderer, scaleMultiplier);
                     } else if (mrp.renderer is MeshRenderer) {
-                        DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer, scaleMultiplier);
+                        DrawMeshSelectionButton(mrp.renderer, scaleMultiplier);
                     }
                 }
             }
@@ -897,10 +954,9 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
                     using (new EditorGUILayout.HorizontalScope(GUILayout.Width(PANEL_WIDTH / 2), GUILayout.Height(110))) {
                         foreach (MeshRendererPair mrp in Reader.MaterialDict[selectedMaterial.material]) {
                             if (mrp.renderer is SkinnedMeshRenderer) {
-                                DrawMeshSelectionButton((mrp.renderer as SkinnedMeshRenderer).sharedMesh,
-                                                         mrp.renderer, scaleMultiplier);
+                                DrawMeshSelectionButton(mrp.renderer, scaleMultiplier);
                             } else if (mrp.renderer is MeshRenderer) {
-                                DrawMeshSelectionButton(mrp.filter.sharedMesh, mrp.renderer, scaleMultiplier);
+                                DrawMeshSelectionButton(mrp.renderer, scaleMultiplier);
                             }
                         }
                     }
@@ -912,14 +968,13 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     /// <summary>
     /// Draw a button to select a given submesh;
     /// </summary>
-    /// <param name="mesh"> Mesh that the button will select; </param>
     /// <param name="renderer"> Renderer containing the mesh; </param>
     /// <param name="scaleMultiplier"> Lazy scale multiplier; </param>
-    private void DrawMeshSelectionButton(Mesh mesh, Renderer renderer, float scaleMultiplier) {
+    private void DrawMeshSelectionButton(Renderer renderer, float scaleMultiplier) {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(Reader.MeshPreviewDict[renderer], 80 * scaleMultiplier, 80 * scaleMultiplier);
             if (selectedMaterial != null && selectedMaterial.renderer == renderer) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(18 * scaleMultiplier));
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(20 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) SetSelectedRenderer(renderer);
         }
     }
@@ -931,36 +986,34 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
     private void DrawMaterialSlots() {
         using (new EditorGUILayout.VerticalScope(GUILayout.Width(PANEL_WIDTH / 2), GUILayout.Height(145))) {
             EditorUtils.DrawSeparatorLines("Material Slots", true);
-            if (selectedMaterial != null && selectedMaterial.renderer != null) {
-                using (var view = new EditorGUILayout.ScrollViewScope(rightMaterialScroll, true, false,
-                                                                  GUI.skin.horizontalScrollbar, GUIStyle.none,
-                                                                  GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH / 2), GUILayout.MaxHeight(110))) {
-                    rightMaterialScroll = view.scrollPosition;
-                    using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(PANEL_WIDTH / 2), GUILayout.MaxHeight(110))) {
-                        Dictionary<string, Material> tempDict = new Dictionary<string, Material>(StaticMaterialSlots);
-                        foreach (KeyValuePair<string, Material> kvp in tempDict) {
-                            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(50), GUILayout.MaxHeight(35))) {
-                                using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(60))) {
-                                    GUILayout.FlexibleSpace();
-                                    Material material = (Material) EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false, GUILayout.MaxWidth(50));
-                                    if (material != kvp.Value) {
-                                        ReplacePersistentMaterial(kvp.Key, material);
-                                    }
-                                } using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(45))) {
-                                    GUILayout.FlexibleSpace();
-                                    if (kvp.Value != null) EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(kvp.Value), 40, 40);
-                                    else EditorUtils.DrawTexture(EditorUtils.FetchIcon("d_AutoLightbakingOff"), 40, 40);
-                                } using (new EditorGUILayout.HorizontalScope(EditorStyles.selectionRect, GUILayout.MaxWidth(40), GUILayout.MaxHeight(8))) {
-                                    GUIStyle tempStyle = new GUIStyle(EditorStyles.boldLabel);
-                                    tempStyle.fontSize = 8;
-                                    GUILayout.Label(kvp.Key, tempStyle, GUILayout.MaxHeight(8), GUILayout.MaxWidth(40));
-                                    GUILayout.FlexibleSpace();
+            using (var view = new EditorGUILayout.ScrollViewScope(rightMaterialScroll, true, false,
+                                                                GUI.skin.horizontalScrollbar, GUIStyle.none,
+                                                                GUI.skin.box, GUILayout.MaxWidth(PANEL_WIDTH / 2), GUILayout.MaxHeight(110))) {
+                rightMaterialScroll = view.scrollPosition;
+                using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(PANEL_WIDTH / 2), GUILayout.MaxHeight(110))) {
+                    Dictionary<string, Material> tempDict = new Dictionary<string, Material>(StaticMaterialSlots);
+                    foreach (KeyValuePair<string, Material> kvp in tempDict) {
+                        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(50), GUILayout.MaxHeight(35))) {
+                            using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(60))) {
+                                GUILayout.FlexibleSpace();
+                                Material material = (Material) EditorGUILayout.ObjectField(kvp.Value, typeof(Material), false, GUILayout.MaxWidth(50));
+                                if (material != kvp.Value) {
+                                    ReplacePersistentMaterial(kvp.Key, material);
                                 }
+                            } using (new EditorGUILayout.HorizontalScope(GUILayout.MaxWidth(45))) {
+                                GUILayout.FlexibleSpace();
+                                if (kvp.Value != null) EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(kvp.Value), 40, 40);
+                                else EditorUtils.DrawTexture(EditorUtils.FetchIcon("d_AutoLightbakingOff"), 40, 40);
+                            } using (new EditorGUILayout.HorizontalScope(EditorStyles.selectionRect, GUILayout.MaxWidth(40), GUILayout.MaxHeight(8))) {
+                                GUIStyle tempStyle = new GUIStyle(EditorStyles.boldLabel);
+                                tempStyle.fontSize = 8;
+                                GUILayout.Label(kvp.Key, tempStyle, GUILayout.MaxHeight(8), GUILayout.MaxWidth(40));
+                                GUILayout.FlexibleSpace();
                             }
                         }
                     }
                 }
-            } else EditorUtils.DrawScopeCenteredText("No Mesh Selected");
+            }
         }
     }
 
@@ -973,7 +1026,7 @@ public class ModelAssetDatabaseReaderTabMaterials : ModelAssetDatabaseReaderTab 
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MaxWidth(1))) {
             EditorUtils.DrawTexture(AssetPreview.GetAssetPreview(material), 80 * scaleMultiplier, 80 * scaleMultiplier);
             if (selectedMaterial != null && selectedMaterial.material == material) {
-                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(14 * scaleMultiplier));
+                GUILayout.Label("Selected", UIStyles.CenteredLabelBold, GUILayout.MaxWidth(80 * scaleMultiplier), GUILayout.MaxHeight(20 * scaleMultiplier));
             } else if (GUILayout.Button("Open", GUILayout.MaxWidth(80 * scaleMultiplier))) {
                 SetSelectedMaterial(material);
             }
@@ -1008,8 +1061,6 @@ public class ModelAssetDatabaseReaderTabPrefabs : ModelAssetDatabaseReaderTab {
 
     private static Vector2 prefabLogScroll;
     private static Vector2 prefabListScroll;
-
-    public ModelAssetDatabaseReaderTabPrefabs(ModelAssetDatabaseReader Reader) : base(Reader) { }
 
     public override void LoadData(string path) {
         PrefabActionLog = new Stack<string>();
@@ -1215,33 +1266,12 @@ public class ModelAssetDatabaseReaderTabPrefabs : ModelAssetDatabaseReaderTab {
     }
 }
 
-public class ModelAssetDatabaseReaderTabRig : ModelAssetDatabaseReaderTab {
-
-    public ModelAssetDatabaseReaderTabRig(ModelAssetDatabaseReader Reader) : base(Reader) {
-
-    }
-
-    public override void LoadData(string path) {
-
-    }
-
-    public override void ResetData() {
-
-    }
-
-    public override void ShowGUI() {
-
-    }
-}
-
 public class ModelAssetDatabaseReaderTabAnimations : ModelAssetDatabaseReaderTab {
 
     /// <summary> Internal editor used to embed the Animation Clip Editor from the Model Importer; </summary>
     private Editor AnimationEditor;
 
     private static Vector2 animationScroll;
-
-    public ModelAssetDatabaseReaderTabAnimations(ModelAssetDatabaseReader Reader) : base(Reader) { }
 
     public override void ResetData() => CleanAnimationEditor();
 
@@ -1252,7 +1282,7 @@ public class ModelAssetDatabaseReaderTabAnimations : ModelAssetDatabaseReaderTab
         /// Fetch a reference to the base Model Importer Editor class;
         var editorType = typeof(Editor).Assembly.GetType("UnityEditor.ModelImporterEditor");
         /// Perform a clean reconstruction of the Model Importer Editor;
-        if (AnimationEditor != null) Object.DestroyImmediate(AnimationEditor);
+        DestroyImmediate(AnimationEditor);
         AnimationEditor = Editor.CreateEditor(Reader.Model, editorType);
     }
 
@@ -1260,9 +1290,7 @@ public class ModelAssetDatabaseReaderTabAnimations : ModelAssetDatabaseReaderTab
     /// Cleans the Animation Editor, if it exists;
     /// </summary>
     private void CleanAnimationEditor() {
-        if (AnimationEditor != null) {
-            DestroyImmediate(AnimationEditor);
-        }
+        DestroyImmediate(AnimationEditor);
     }
 
     /// <summary> GUI Display for the Animations Section </summary>
@@ -1272,16 +1300,16 @@ public class ModelAssetDatabaseReaderTabAnimations : ModelAssetDatabaseReaderTab
         int panelWidth = 620;
         using (new EditorGUILayout.HorizontalScope()) {
             using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
-                EditorUtils.DrawWindowBoxLabel("Animation Editor");
+                EditorUtils.WindowBoxLabel("Animation Editor");
                 EditorGUILayout.Separator();
                 using (var scope = new EditorGUILayout.ScrollViewScope(animationScroll)) {
                     animationScroll = scope.scrollPosition;
                     DrawAnimationEditor();
                 }
             } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
-                EditorUtils.DrawWindowBoxLabel("Animation Preview");
+                EditorUtils.WindowBoxLabel("Animation Preview");
                 using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
-                    if (AnimationEditor.HasPreviewGUI()) {
+                    if (AnimationEditor.target != null ) {
                         using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
                             GUILayout.Label("Preview Settings:", new GUIStyle(GUI.skin.label) { contentOffset = new Vector2(0, -1) });
                             AnimationEditor.OnPreviewSettings();
@@ -1302,6 +1330,7 @@ public class ModelAssetDatabaseReaderTabAnimations : ModelAssetDatabaseReaderTab
     /// Draws the Animation Clip Editor tab from the internal Model Importer Editor;
     /// </summary>
     private void DrawAnimationEditor() {
+        if (AnimationEditor == null) return;
         /// Fetch a reference to the parent Asset Importer Editor, which contains the tabs array field;
         var baseType = typeof(Editor).Assembly.GetType("UnityEditor.AssetImporterTabbedEditor");
         /// Fetch a reference to the Model Importer Clip Editor tab class;

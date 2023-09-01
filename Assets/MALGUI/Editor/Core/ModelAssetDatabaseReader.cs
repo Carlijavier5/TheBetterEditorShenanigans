@@ -13,14 +13,18 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
 
     #region | Variables |
 
+    #region | Tab Variables |
+
+    /// <summary> Array containing all reader tabs; </summary>
+    private ModelAssetDatabaseToolTab[] tabs;
+
     /// <summary> Component Tools separated by General purpose; </summary>
     public enum SectionType {
         Model = 0,
         Meshes = 1,
         Materials = 2,
         Prefabs = 3,
-        Rig = 4,
-        Animations = 5,
+        Animations = 4,
     } /// <summary> Section currently selected in the GUI; </summary>
     private SectionType ActiveSection;
 
@@ -31,8 +35,11 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     } /// <summary> Asset Mode currently selected in the GUI; </summary>
     private AssetMode ActiveAssetMode;
 
-    /// <summary> Array containing all reader tabs; </summary>
-    private ModelAssetDatabaseReaderTab[] tabs;
+    #endregion
+
+    #region | Model & Tool Data |
+
+    public System.Action OnModelReimport;
 
     /// <summary> Reference to the model importer file; </summary>
     public ModelImporter Model { get; private set; }
@@ -83,18 +90,20 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
 
     /// <summary> Found myself using this number a lot. Right side width; </summary>
     public const float PANEL_WIDTH = 440;
+
+    #endregion
+
     #endregion
 
     #region | Initialization & Cleanup |
 
     protected override void InitializeData() {
-        tabs = new ModelAssetDatabaseReaderTab[] { 
-            new ModelAssetDatabaseReaderTabModel(this),
-            new ModelAssetDatabaseReaderTabMeshes(this),
-            new ModelAssetDatabaseReaderTabMaterials(this),
-            new ModelAssetDatabaseReaderTabPrefabs(this),
-            new ModelAssetDatabaseReaderTabRig(this),
-            new ModelAssetDatabaseReaderTabAnimations(this),
+        tabs = new ModelAssetDatabaseToolTab[] { 
+            ModelAssetDatabaseToolTab.CreateTab<ModelAssetDatabaseReaderTabModel>(this),
+            ModelAssetDatabaseToolTab.CreateTab<ModelAssetDatabaseReaderTabMeshes>(this),
+            ModelAssetDatabaseToolTab.CreateTab<ModelAssetDatabaseReaderTabMaterials>(this),
+            ModelAssetDatabaseToolTab.CreateTab<ModelAssetDatabaseReaderTabPrefabs>(this),
+            ModelAssetDatabaseToolTab.CreateTab<ModelAssetDatabaseReaderTabAnimations>(this),
         };
 
         if (CustomTextures == null) CustomTextures = ModelAssetLibraryConfigurationCore.ToolAssets;
@@ -124,9 +133,15 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         //Undo.undoRedoPerformed -= UpdateSlotChangedStatus;
     }
 
+    /// <summary>
+    /// Checks if the model reference is available;
+    /// </summary>
+    /// <returns> True if the model reference is null, false otherwise; </returns>
+    private bool ReferencesAreFlushed() => Model == null;
+
     #endregion
 
-    #region | Global Methods |
+    #region | Selection Methods |
 
     /// <summary>
     /// Set the currently selected asset;
@@ -135,8 +150,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     public override void SetSelectedAsset(string path) {
         FlushData();
         LoadSelectedAsset(path);
-        ActiveAssetMode = AssetMode.Model;
-        ActiveSection = SectionType.Model;
+        SetSelectedAssetMode(ModelExtData.isModel ? AssetMode.Model : AssetMode.Animation);
     }
 
     /// <summary>
@@ -149,7 +163,7 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
                 SetSelectedSection(SectionType.Model);
                 break;
             case AssetMode.Animation:
-                SetSelectedSection(SectionType.Rig);
+                SetSelectedSection(SectionType.Animations);
                 break;
         } ActiveAssetMode = newAssetMode;
     }
@@ -160,9 +174,22 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// <param name="sectionType"> Type of the prospective section to show; </param>
     public void SetSelectedSection(SectionType sectionType) {
         if (ActiveSection != sectionType) {
-            ActiveSection = sectionType;
             ResetData();
+            ActiveSection = sectionType;
         }
+    }
+
+    #endregion
+
+    #region | Loading Helpers |
+
+    /// <summary>
+    /// Reimports the current Model and updates the Reader accordingly;
+    /// </summary>
+    public void ReimportModel() {
+        Model.SaveAndReimport();
+        OnModelReimport?.Invoke();
+        UpdateMeshAndMaterialProperties();
     }
 
     /// <summary>
@@ -174,26 +201,10 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         ModelID = AssetDatabase.AssetPathToGUID(Model.assetPath);
         ModelExtData = ModelID != null ? ModelAssetLibrary.ModelDataDict[ModelID].extData : null;
         RootPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        foreach (ModelAssetDatabaseReaderTab tab in tabs) tab.LoadData(path);
+        foreach (ModelAssetDatabaseToolTab tab in tabs) tab.LoadData(path);
         UpdateMeshAndMaterialProperties();
         //Undo.undoRedoPerformed += UpdateSlotChangedStatus;
     }
-
-    public void ReimportModel() {
-        Model.SaveAndReimport();
-        CleanObjectPreview();
-        UpdateMeshAndMaterialProperties();
-    }
-
-    #endregion
-
-    #region | Loading Helpers |
-
-    /// <summary>
-    /// Checks if the model reference is available;
-    /// </summary>
-    /// <returns> True if the model reference is null, false otherwise; </returns>
-    private bool ReferencesAreFlushed() => Model == null;
 
     /// <summary>
     /// Reads all 'accesible' mesh and material data from a model;
@@ -293,10 +304,10 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// <param name="gameObject"> GameObject to show in the Preview; </param>
     /// <param name="width"> Width of the Preview's Rect; </param>
     /// <param name="height"> Height of the Preview's Rect; </param>
-    public void DrawObjectPreviewEditor(GameObject gameObject, float width, float height) {
-        if (objectPreview is null) {
-            objectPreview = new GenericPreview(gameObject);
-        } objectPreview.DrawPreview(GUILayout.Width(width), GUILayout.Height(height));
+    public void DrawObjectPreviewEditor(GameObject gameObject, params GUILayoutOption[] options) {
+        if (objectPreview == null) {
+            objectPreview = GenericPreview.CreatePreview(gameObject);
+        } objectPreview.DrawPreview(options);
         DestroyImmediate(DummyGameObject);
     }
 
@@ -315,11 +326,11 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
     /// Dispose of the current Object Preview Editor;
     /// <br></br> May be called by the Material Inspector to update the Preview;
     /// </summary>
-    public void CleanObjectPreview() {
-        if (objectPreview is not null) objectPreview.CleanUp(ref objectPreview);
-    }
+    public void CleanObjectPreview() => DestroyImmediate(objectPreview);
 
     #endregion
+
+    #region | Tool GUI |
 
     /// <summary>
     /// Call the appropriate section function based on GUI Selection;
@@ -337,8 +348,6 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         MainGUI.SetHighRepaintFrequency(false);
     }
 
-    #region | Global Toolbar |
-
     /// <summary>
     /// Draws the toolbar for the Model Reader;
     /// </summary>
@@ -352,10 +361,10 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
                 DrawToolbarButton(SectionType.Prefabs, 112, 245);
                 break;
             case AssetMode.Animation:
-                DrawToolbarButton(SectionType.Rig, 66, 345);
-                DrawToolbarButton(SectionType.Animations, 82, 345);
+                DrawToolbarButton(SectionType.Animations, 328, 980);
                 break;
         } GUILayout.FlexibleSpace();
+        if (ModelExtData != null && !ModelExtData.isModel) GUI.enabled = false;
         EditorGUILayout.LabelField("Asset Mode:", UIStyles.ToolbarText, GUILayout.Width(110));
         AssetMode newAssetMode = (AssetMode) EditorGUILayout.EnumPopup(ActiveAssetMode, UIStyles.ToolbarPaddedPopUp, GUILayout.MinWidth(100), GUILayout.MaxWidth(180));
         if (ActiveAssetMode != newAssetMode) SetSelectedAssetMode(newAssetMode);
@@ -376,7 +385,11 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
         }
     }
 
-    /// <summary>
+    #endregion
+
+    #region | Inter-Tab Bridge |
+
+        /// <summary>
     /// A button to switch to the Material section with the current mesh selected;
     /// </summary>
     /// <param name="renderer"> The renderer to keep through the section change; </param>
@@ -400,13 +413,6 @@ public class ModelAssetDatabaseReader : ModelAssetDatabaseTool {
             mesh = mrp.filter.sharedMesh;
         } var meshesTab = tabs[(int) SectionType.Meshes] as ModelAssetDatabaseReaderTabMeshes;
         meshesTab.SetSelectedMesh(mesh, renderer);
-    }
-
-    /// <summary>
-    /// A neat message to display on unfinished sections;
-    /// </summary>
-    private void WIP() {
-        EditorUtils.DrawScopeCenteredText("This section is not fully implemented yet.\nYou should yell at Carlos in response to this great offense!");
     }
 
     #endregion

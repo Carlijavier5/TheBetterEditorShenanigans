@@ -26,12 +26,12 @@ public class ModelAssetDatabasePreviewExpanded : EditorWindow {
         if (previewObject == null) {
             EditorUtils.DrawScopeCenteredText("Oh, Great Lady of Assembly Reloads...\nShow us your wisdom! And reload this page...");
         } else {
-            if (preview is null) preview = new GenericPreview(previewObject);
+            if (preview == null) preview = GenericPreview.CreatePreview(previewObject);
             preview.DrawPreview(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
         }
     }
 
     void OnDisable() {
-        if (preview != null) preview.CleanUp(ref preview);
+        DestroyImmediate(preview);
     }
 }

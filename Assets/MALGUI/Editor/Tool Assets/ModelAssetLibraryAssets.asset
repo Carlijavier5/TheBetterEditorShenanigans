@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: ModelAssetLibraryAssets
   m_EditorClassIdentifier: 
   noMeshPreview: {fileID: 2800000, guid: 7747032198a980c40b9844c321f188dc, type: 3}
-  noMaterialPreview: {fileID: 2800000, guid: afafc4c3e9247ea45a91784f8f5779b9, type: 3}
   meshPreviewBackground: {fileID: 2800000, guid: 98bc09f68eff6f6439b20ee04775d3c2,
     type: 3}
+  defaultMaterial: {fileID: 2100000, guid: 032047ef670241842ae0e1c0e9bcfc4c, type: 2}
   highlight: {fileID: 2100000, guid: 3ca2daf9c1a584940bb405f5a07ae30d, type: 2}
   spherePrefab: {fileID: 6455583258980142827, guid: 5f46d6f48ce35e74ab406c980eb22afb,
     type: 3}

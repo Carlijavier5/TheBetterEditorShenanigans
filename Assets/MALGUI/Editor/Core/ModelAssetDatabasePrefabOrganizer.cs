@@ -253,7 +253,7 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
 
         bool searchStringActive = string.IsNullOrWhiteSpace(searchString);
         string folderName = SelectedFolder.IsolatePathEnd("\\/");
-        EditorUtils.DrawWindowBoxLabel(searchStringActive ? folderName 
+        EditorUtils.WindowBoxLabel(searchStringActive ? folderName 
                                        : "Search Results in \"" + ( searchAll ? "All" : folderName) + "\"");
 
         using (new EditorGUILayout.HorizontalScope()) {
@@ -325,7 +325,7 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
 
             using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.ExpandHeight(true))) {
                 GUILayout.FlexibleSpace();
-                EditorUtils.DrawWindowBoxLabel(ModelAssetLibrary.PrefabDataDict[prefabID].name);
+                EditorUtils.WindowBoxLabel(ModelAssetLibrary.PrefabDataDict[prefabID].name);
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                     if (GUILayout.Button("Open Library", GUILayout.MaxHeight(24))) {
                         MainGUI.SwitchToLibrary(ModelAssetLibrary.PrefabDataDict[prefabID].modelID);
@@ -408,7 +408,7 @@ public class ModelAssetDatabasePrefabOrganizer : ModelAssetDatabaseTool {
                 using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox, GUILayout.Width(210))) {
                     DrawDragAndDropPreviewModel(modelID);
                     using (new EditorGUILayout.VerticalScope()) {
-                        EditorUtils.DrawWindowBoxLabel(ModelAssetLibrary.ModelDataDict[modelID].name, GUILayout.Height(14));
+                        EditorUtils.WindowBoxLabel(ModelAssetLibrary.ModelDataDict[modelID].name, GUILayout.Height(14));
                         using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox, GUILayout.Height(24))) {
                             GUI.color = UIColors.Blue;
                             if (GUILayout.Button("Reimport", EditorStyles.miniButton)) {

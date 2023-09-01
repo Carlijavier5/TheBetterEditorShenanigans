@@ -222,7 +222,7 @@ public class ModelAssetLibraryAssetPreprocessorGUI : EditorWindow {
     }
 
     private void DrawPreview(params GUILayoutOption[] options) {
-        if (preview is null) preview = new GenericPreview(modelGO);
+        if (preview is null) preview = GenericPreview.CreatePreview(modelGO);
         preview.DrawPreview(options);
     }
 
