@@ -10,6 +10,8 @@ namespace ModelAssetDatabase {
     /// <br></br> Reads the folder directory and generates interactable Hierarchy Previews; </summary>
     public class HierarchyBuilder : BaseTool {
 
+        private HierarchyTab[] tabs;
+
         private Dictionary<string, ModelAssetDatabase.FolderData> folderMap { get { return ModelAssetDatabase.FolderMap; } }
 
         /// <summary> Sorted list of all identified models for the search function; </summary>
@@ -25,7 +27,7 @@ namespace ModelAssetDatabase {
         private string SelectedModelPath { get { return MainGUI.ModelReader.Model != null ? MainGUI.ModelReader.Model.assetPath : null; } }
 
         /// <summary> Currently selected category path in the hierarchy; </summary>
-        private string SelectedCategoryPath { get { return MainGUI.PrefabOrganizer.SelectedFolder; } }
+        private string SelectedFolderPath { get { return MainGUI.PrefabOrganizer.SelectedFolder; } }
 
         private string SelectedMaterialPath { get { return MainGUI.MaterialManager.EditedMaterial != null ? MainGUI.MaterialManager.EditedMaterial.path : null; } }
 
@@ -45,6 +47,12 @@ namespace ModelAssetDatabase {
             modelList.Sort((name1, name2) => AlnumSort(name1, name2));
             folderList.Sort((name1, name2) => AlnumSort(name1, name2));
             materialList.Sort((name1, name2) => AlnumSort(name1, name2));
+
+            tabs = new HierarchyTab[] {
+                ToolTab.CreateTab<HierarchyTabModels>(this),
+                ToolTab.CreateTab<HierarchyTabFolders>(this),
+                ToolTab.CreateTab<HierarchyTabMaterials>(this),
+            };
         }
 
         public override void FlushData() { }
@@ -292,7 +300,7 @@ namespace ModelAssetDatabase {
         /// <param name="path"> Path to the folder; </param>
         /// <param name="folderOpened"> Whether the foldout is active, so the Folder icon can reflect it; </param>
         private void DrawPrefabFolderButton(string path, bool folderOpened) {
-            GUIStyle buttonStyle = path == SelectedCategoryPath ? UIStyles.HFButtonSelected : UIStyles.HFButton;
+            GUIStyle buttonStyle = path == SelectedFolderPath ? UIStyles.HFButtonSelected : UIStyles.HFButton;
             GUIContent folderContent = new GUIContent(path.IsolatePathEnd("\\/"), EditorUtils.FetchIcon(folderOpened ? "d_FolderOpened Icon" : "d_Folder Icon"));
             float width = EditorUtils.MeasureTextWidth(folderContent.text, GUI.skin.font);
             if (GUILayout.Button(folderContent, buttonStyle, GUILayout.Width(width + 34), GUILayout.Height(20))) MainGUI.SetSelectedAsset(path);

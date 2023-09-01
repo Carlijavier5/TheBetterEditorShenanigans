@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ModelAssetDatabase {
@@ -63,16 +64,22 @@ namespace ModelAssetDatabase {
             } else Debug.LogError(INVALID_MANAGER);
         }
     }
-    /*
+
     public class HierarchyTabModels : HierarchyTab {
 
+        /// <summary> Sorted list of all identified models for the search function; </summary>
+        private List<string> modelList;
     }
 
     public class HierarchyTabFolders : HierarchyTab {
 
+        /// <summary> Sorted list of all identified model-containing folders for the search function; </summary>
+        private List<string> folderList;
     }
 
     public class HierarchyTabMaterials : HierarchyTab {
 
-    }*/
+        /// <summary> Sorted list of all identfied materials for the search function; </summary>
+        private List<string> materialList;
+    }
 }

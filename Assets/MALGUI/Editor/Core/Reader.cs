@@ -15,7 +15,7 @@ namespace ModelAssetDatabase {
         #region | Tab Variables |
 
         /// <summary> Array containing all reader tabs; </summary>
-        private ToolTab[] tabs;
+        private ReaderTab[] tabs;
 
         /// <summary> Component Tools separated by General purpose; </summary>
         public enum SectionType {
@@ -97,7 +97,7 @@ namespace ModelAssetDatabase {
         #region | Initialization & Cleanup |
 
         protected override void InitializeData() {
-            tabs = new ToolTab[] { 
+            tabs = new ReaderTab[] { 
                 ToolTab.CreateTab<ReaderTabModel>(this),
                 ToolTab.CreateTab<ReaderTabMeshes>(this),
                 ToolTab.CreateTab<ReaderTabMaterials>(this),
