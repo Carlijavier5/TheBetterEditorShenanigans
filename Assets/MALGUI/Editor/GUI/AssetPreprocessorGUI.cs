@@ -722,7 +722,7 @@ namespace ModelAssetDatabase {
         private void DrawShaderPopup(GUIContent shaderContent, string key) {
             shaderKey = key;
             Rect position = EditorGUILayout.GetControlRect(GUILayout.MinWidth(135));
-            MADShaderUtil.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
+            MADShaderUtils.DrawDefaultShaderPopup(position, shaderContent, ApplyShaderResult);
         }
 
         /// <summary>
@@ -732,7 +732,7 @@ namespace ModelAssetDatabase {
         private void DrawShaderHistoryPopup(string key) {
             shaderKey = key;
             Rect position = EditorGUILayout.GetControlRect(GUILayout.Width(36));
-            MADShaderUtil.DrawShaderHistoryPopup(position, ApplyShaderResult);
+            MADShaderUtils.DrawShaderHistoryPopup(position, ApplyShaderResult);
         }
 
         /// <summary>

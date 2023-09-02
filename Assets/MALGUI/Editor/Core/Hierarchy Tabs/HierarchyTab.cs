@@ -5,13 +5,21 @@ using CJUtils;
 using ModelAssetDatabase.MADUtils;
 
 namespace ModelAssetDatabase {
+
+    /// <summary>
+    /// Base class for all 'tabbed' variants of the Hierarchy Builder;
+    /// </summary>
     public abstract class HierarchyTab : BaseTab {
 
         #region | Base Tab Overrides |
 
+        /// <summary> The parent Hierarchy Builder of this tab; </summary>
         protected HierarchyBuilder HierarchyBuilder;
+
+        /// <summary> A getter for the folder map contained in the Model Asset Database; </summary>
         protected Dictionary<string, ModelAssetDatabase.FolderData> folderMap { get { return ModelAssetDatabase.FolderMap; } }
 
+        /// <summary> A list of the assets contemplated by this tab; </summary>
         protected List<string> assetList;
 
         protected override void InitializeData() {

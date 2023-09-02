@@ -7,6 +7,8 @@ namespace ModelAssetDatabase {
     /// <br></br> Reads the folder directory and generates interactable Hierarchy Previews; </summary>
     public class HierarchyBuilder : BaseTool {
 
+        #region | Variables |
+
         private HierarchyTab[] tabs;
 
         /// <summary> Asset path selected in the hierarchy; </summary>
@@ -14,6 +16,8 @@ namespace ModelAssetDatabase {
 
         /// GUI variables;
         private string searchString;
+
+        #endregion
 
         #region | Initialization & Cleanup |
 
@@ -41,7 +45,7 @@ namespace ModelAssetDatabase {
 
         #endregion
 
-        #region | GUI |
+        #region | Hierarchy GUI |
 
         /// <summary>
         /// Draws the Search Bar atop the Hierarchy Preview;

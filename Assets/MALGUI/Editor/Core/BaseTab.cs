@@ -45,4 +45,35 @@ namespace ModelAssetDatabase {
         /// </summary>
         public virtual void ShowGUI() => EditorUtils.DrawScopeCenteredText("No GUI has been implemented for this tab;");
     }
+
+    /// <summary>
+    /// Base class for all tabs managed by the Material Manager Tool;
+    /// </summary>
+    public abstract class MaterialTab : BaseTab {
+
+        /// <summary> The Material Manager parent tool of this tab; </summary>
+        protected MaterialManager MaterialManager;
+
+        protected override void InitializeData() {
+            if (Tool is MaterialManager) {
+                MaterialManager = Tool as MaterialManager;
+            } else Debug.LogError(INVALID_MANAGER);
+        }
+    }
+
+    public class MaterialTabEditor : MaterialTab {
+
+    }
+
+    public class MaterialTabCreator : MaterialTab {
+
+    }
+
+    public class MaterialTabOrganizer : MaterialTab {
+
+    }
+
+    public class MaterialTabReplacer : MaterialTab {
+
+    }
 }

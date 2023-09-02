@@ -11,12 +11,14 @@ namespace ModelAssetDatabase {
     /// <br></br> Allows for the edition, creation, and general manipulation of Material Assets; </summary>
     public class MaterialManager : BaseTool {
 
+        private MaterialTab[] tabs;
+
         /// <summary> Distinct tabs separating Manager Functions; </summary>
         public enum SectionType {
-            Editor,
-            Creator,
-            Organizer,
-            Replacer
+            Editor = 0,
+            Creator = 1,
+            Organizer = 2,
+            Replacer = 3
         } /// <summary> Section currently selected in the GUI; </summary>
         public SectionType ActiveSection { get; private set; }
 
@@ -46,9 +48,14 @@ namespace ModelAssetDatabase {
         #region | Global Methods |
 
         protected override void InitializeData() {
-            if (customPrefabs == null) {
-                customPrefabs = ConfigurationCore.ToolAssets;
-            } 
+            if (customPrefabs == null) customPrefabs = ConfigurationCore.ToolAssets;
+
+            tabs = new MaterialTab[] {
+                BaseTab.CreateTab<MaterialTabEditor>(this),
+                BaseTab.CreateTab<MaterialTabCreator>(this),
+                BaseTab.CreateTab<MaterialTabOrganizer>(this),
+                BaseTab.CreateTab<MaterialTabReplacer>(this),
+            };
         }
 
         public override void ResetData() {
@@ -178,9 +185,9 @@ namespace ModelAssetDatabase {
                                     Rect shaderPosition = EditorGUILayout.GetControlRect(GUILayout.MinWidth(105));
                                     GUIContent shaderContent = new GUIContent(EditedMaterial.material.shader == null
                                                                               ? "Missing Shader" : EditedMaterial.material.shader.name);
-                                    MADShaderUtil.DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
+                                    MADShaderUtils.DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
                                     Rect historyPosition = EditorGUILayout.GetControlRect(GUILayout.Width(38));
-                                    MADShaderUtil.DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
+                                    MADShaderUtils.DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
                                 } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
                                     using (var view = new EditorGUILayout.ScrollViewScope(editorScroll)) {
                                         editorScroll = view.scrollPosition;

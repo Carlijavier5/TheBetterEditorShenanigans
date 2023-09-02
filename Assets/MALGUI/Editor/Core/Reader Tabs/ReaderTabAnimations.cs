@@ -47,7 +47,7 @@ namespace ModelAssetDatabase {
                 } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
                     EditorUtils.WindowBoxLabel("Animation Preview");
                     using (new EditorGUILayout.VerticalScope(GUI.skin.box)) {
-                        if (AnimationEditor.target != null) {
+                        if (AnimationEditor.HasPreviewGUI()) {
                             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar)) {
                                 GUILayout.Label("Preview Settings:", new GUIStyle(GUI.skin.label) { contentOffset = new Vector2(0, -1) });
                                 AnimationEditor.OnPreviewSettings();

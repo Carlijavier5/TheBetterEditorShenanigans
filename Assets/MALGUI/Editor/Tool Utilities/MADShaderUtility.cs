@@ -12,7 +12,7 @@ namespace ModelAssetDatabase {
     /// </summary>
     namespace MADShaderUtility {
 
-        public static class MADShaderUtil {
+        public static class MADShaderUtils {
 
             /// <summary> Delegate for the local Shader Popup event set-up; </summary>
             public static System.Action<Shader> OnShaderResult;
