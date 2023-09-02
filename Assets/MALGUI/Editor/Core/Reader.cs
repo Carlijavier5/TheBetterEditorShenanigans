@@ -98,11 +98,11 @@ namespace ModelAssetDatabase {
 
         protected override void InitializeData() {
             tabs = new ReaderTab[] { 
-                ToolTab.CreateTab<ReaderTabModel>(this),
-                ToolTab.CreateTab<ReaderTabMeshes>(this),
-                ToolTab.CreateTab<ReaderTabMaterials>(this),
-                ToolTab.CreateTab<ReaderTabPrefabs>(this),
-                ToolTab.CreateTab<ReaderTabAnimations>(this),
+                BaseTab.CreateTab<ReaderTabModel>(this),
+                BaseTab.CreateTab<ReaderTabMeshes>(this),
+                BaseTab.CreateTab<ReaderTabMaterials>(this),
+                BaseTab.CreateTab<ReaderTabPrefabs>(this),
+                BaseTab.CreateTab<ReaderTabAnimations>(this),
             };
 
             if (CustomTextures == null) CustomTextures = ConfigurationCore.ToolAssets;
@@ -200,7 +200,7 @@ namespace ModelAssetDatabase {
             ModelID = AssetDatabase.AssetPathToGUID(Model.assetPath);
             ModelExtData = ModelID != null ? ModelAssetDatabase.ModelDataDict[ModelID].extData : null;
             RootPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            foreach (ToolTab tab in tabs) tab.LoadData(path);
+            foreach (BaseTab tab in tabs) tab.LoadData(path);
             UpdateMeshAndMaterialProperties();
             //Undo.undoRedoPerformed += UpdateSlotChangedStatus;
         }

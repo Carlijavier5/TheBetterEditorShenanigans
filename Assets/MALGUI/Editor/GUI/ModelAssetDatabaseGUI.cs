@@ -57,13 +57,17 @@ namespace ModelAssetDatabase {
         public Reader ModelReader { get { return Subtools[(int) ToolMode.ModelReader] as Reader; } }
         public PrefabOrganizer PrefabOrganizer { get { return Subtools[(int) ToolMode.PrefabOrganizer] as PrefabOrganizer; } }
         public MaterialManager MaterialManager { get { return Subtools[(int) ToolMode.MaterialManager] as MaterialManager; } }
+        public string SelectedAssetPath { get; private set; }
 
         /// <summary>
         /// Sets the selected asset on the active tool;
         /// <br></br> The tool chooses whether the change is valid;
         /// </summary>
         /// <param name="path"></param>
-        public void SetSelectedAsset(string path) => Subtools[(int) ActiveTool].SetSelectedAsset(path);
+        public void SetSelectedAsset(string path) {
+            SelectedAssetPath = path;
+            Subtools[(int) ActiveTool].SetSelectedAsset(path);
+        }
 
         /// <summary>
         /// Switch to the Prefabs Section of the Model Reader on the corresponding model;

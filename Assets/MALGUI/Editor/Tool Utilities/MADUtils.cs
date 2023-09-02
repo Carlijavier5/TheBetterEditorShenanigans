@@ -218,6 +218,16 @@ namespace ModelAssetDatabase {
             /// <param name="name2"> Second string; </param>
             /// <returns> A comparison integer between two strings based on lexicographical order; </returns>
             public static int AlnumSort(string name1, string name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/"));
+
+            /// <summary>
+            /// Generates a Results List using the Search String obtained through the Hierarchy Search Bar; 
+            /// </summary>
+            /// <param name="searchString"> Search String to process; </param>
+            /// <param name="processList"> List to process; </param>
+            /// <returns> A list containing all matching results depending on the active tool; </returns>
+            public static List<string> GetSearchQuery(string searchString, List<string> processList) {
+                return processList.FindAll((str) => str.Contains(searchString));
+            }
         }
     }
 }
