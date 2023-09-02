@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ModelAssetDatabase.MADUtils;
 
 namespace ModelAssetDatabase {
 
@@ -57,29 +58,75 @@ namespace ModelAssetDatabase {
     public abstract class HierarchyTab : ToolTab {
 
         protected HierarchyBuilder HierarchyBuilder;
+        protected Dictionary<string, ModelAssetDatabase.FolderData> folderMap { get { return ModelAssetDatabase.FolderMap; } }
 
         protected override void InitializeData() {
             if (Tool is HierarchyBuilder) {
                 HierarchyBuilder = Tool as HierarchyBuilder;
             } else Debug.LogError(INVALID_MANAGER);
+            ProcessFolderMap();
         }
+
+        /// <summary>
+        /// Override to process the folder map for relevant search names;
+        /// </summary>
+        protected abstract void ProcessFolderMap();
+
+        /// <summary>
+        /// Generates a Results List using the Search String obtained through the Hierarchy Search Bar; 
+        /// </summary>
+        /// <param name="searchString"> Search String to process; </param>
+        /// <returns> A list containing all matching results depending on the active tool; </returns>
+        protected abstract List<string> GetSearchQuery(string searchString);
     }
 
     public class HierarchyTabModels : HierarchyTab {
 
         /// <summary> Sorted list of all identified models for the search function; </summary>
         private List<string> modelList;
+
+        protected override void ProcessFolderMap() {
+            foreach (ModelAssetDatabase.FolderData folderData in folderMap.Values) {
+                bool hasModels = folderData.models.Count > 0;
+                if (hasModels) modelList.AddRange(folderData.subfolders);
+            } modelList.Sort((name1, name2) => SearchingUtils.AlnumSort(name1, name2));
+        }
+
+        protected override List<string> GetSearchQuery(string searchString) {
+            modelList.FindAll((str) => str.Contains(searchString));
+        }
     }
 
     public class HierarchyTabFolders : HierarchyTab {
 
         /// <summary> Sorted list of all identified model-containing folders for the search function; </summary>
         private List<string> folderList;
+
+        protected override void ProcessFolderMap() {
+            foreach (ModelAssetDatabase.FolderData folderData in folderMap.Values) {
+                bool hasModels = folderData.models.Count > 0;
+                if (hasModels) folderList.AddRange(folderData.subfolders);
+            } folderList.Sort((name1, name2) => SearchingUtils.AlnumSort(name1, name2));
+        }
+
+        protected override List<string> GetSearchQuery(string searchString) {
+            return folderList.FindAll((str) => str.Contains(searchString));
+        }
     }
 
     public class HierarchyTabMaterials : HierarchyTab {
 
         /// <summary> Sorted list of all identfied materials for the search function; </summary>
         private List<string> materialList;
+
+        protected override void ProcessFolderMap() {
+            foreach (ModelAssetDatabase.FolderData folderData in folderMap.Values) {
+                materialList.AddRange(folderData.materials);
+            } materialList.Sort((name1, name2) => SearchingUtils.AlnumSort(name1, name2));
+        }
+
+        protected override List<string> GetSearchQuery(string searchString) {
+            return materialList.FindAll((str) => str.Contains(searchString));
+        }
     }
 }

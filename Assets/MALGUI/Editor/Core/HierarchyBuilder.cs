@@ -12,17 +12,6 @@ namespace ModelAssetDatabase {
 
         private HierarchyTab[] tabs;
 
-        private Dictionary<string, ModelAssetDatabase.FolderData> folderMap { get { return ModelAssetDatabase.FolderMap; } }
-
-        /// <summary> Sorted list of all identified models for the search function; </summary>
-        private List<string> modelList;
-
-        /// <summary> Sorted list of all identified model-containing folders for the search function; </summary>
-        private List<string> folderList;
-
-        /// <summary> Sorted list of all identfied materials for the search function; </summary>
-        private List<string> materialList;
-
         /// <summary> Currently selected model path in the hierarchy; </summary>
         private string SelectedModelPath { get { return MainGUI.ModelReader.Model != null ? MainGUI.ModelReader.Model.assetPath : null; } }
 
@@ -40,14 +29,6 @@ namespace ModelAssetDatabase {
         /// Loads the data required to generate Hierarchy Previews;
         /// </summary>
         protected override void InitializeData() {
-            modelList = new List<string>();
-            folderList = new List<string>();
-            materialList = new List<string>();
-            ProcessFolderMap();
-            modelList.Sort((name1, name2) => AlnumSort(name1, name2));
-            folderList.Sort((name1, name2) => AlnumSort(name1, name2));
-            materialList.Sort((name1, name2) => AlnumSort(name1, name2));
-
             tabs = new HierarchyTab[] {
                 ToolTab.CreateTab<HierarchyTabModels>(this),
                 ToolTab.CreateTab<HierarchyTabFolders>(this),
@@ -58,43 +39,6 @@ namespace ModelAssetDatabase {
         public override void FlushData() { }
 
         #endregion
-
-        /// <summary>
-        /// Adds the folder contents to a list for searching purposes;
-        /// </summary>
-        private void ProcessFolderMap() {
-            foreach (ModelAssetDatabase.FolderData folderData in folderMap.Values) {
-                bool hasModels = folderData.models.Count > 0;
-                if (hasModels) {
-                    modelList.AddRange(folderData.models);
-                    folderList.AddRange(folderData.subfolders);
-                } materialList.AddRange(folderData.materials);
-            }
-        }
-
-        /// <summary>
-        /// Alphanumerical sort comparison expression;
-        /// </summary>
-        /// <param name="name1"> First string; </param>
-        /// <param name="name2"> Second string; </param>
-        /// <returns> A comparison integer between two strings based on lexicographical order; </returns>
-        private static int AlnumSort(string name1, string name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/"));
-
-        /// <summary>
-        /// Generates a Results List using the Search String obtained through the Hierarchy Search Bar; 
-        /// </summary>
-        /// <param name="searchString"> Search String to process; </param>
-        /// <returns> A list containing all matching results depending on the active tool; </returns>
-        private List<string> GetSearchQuery(string searchString, ToolMode toolMode) {
-            switch (toolMode) {
-                case ToolMode.ModelReader:
-                    return modelList.FindAll((str) => str.Contains(searchString));
-                case ToolMode.PrefabOrganizer:
-                    return folderList.FindAll((str) => str.Contains(searchString));
-                case ToolMode.MaterialManager:
-                    return null;
-            } return null;
-        }
 
         // GUI
 

@@ -6,7 +6,7 @@ using UnityEditor;
 
 namespace ModelAssetDatabase {
 
-    namespace MADUtils { 
+    namespace MADUtils {
 
         /// <summary>
         /// Utility class for ease of use and disposal of object previews;
@@ -19,7 +19,7 @@ namespace ModelAssetDatabase {
             /// </summary>
             /// <param name="previewObject"> Object to create a preview for; </param>
             public static GenericPreview CreatePreview(Object previewObject) {
-                var so = CreateInstance<GenericPreview>(); 
+                var so = CreateInstance<GenericPreview>();
                 so.preview = Editor.CreateEditor(previewObject);
                 return so;
             }
@@ -125,7 +125,7 @@ namespace ModelAssetDatabase {
         }
 
         public static class MaterialUtils {
-         
+
             /// <summary>
             /// Fetches a bunch of internal serialized references from the Model Importer;
             /// </summary>
@@ -196,7 +196,7 @@ namespace ModelAssetDatabase {
                                     newObj.FindPropertyRelative("first.type").stringValue = type;
                                     newObj.FindPropertyRelative("first.assembly").stringValue = assembly;
                                     newObj.FindPropertyRelative("second").objectReferenceValue = newMaterial;
-                                } 
+                                }
                             }
                         }
                     } else {
@@ -208,6 +208,16 @@ namespace ModelAssetDatabase {
                     } serializedObject.ApplyModifiedPropertiesWithoutUndo();
                 }
             }
+        }
+
+        public static class SearchingUtils {
+            /// <summary>
+            /// Alphanumerical sort comparison expression;
+            /// </summary>
+            /// <param name="name1"> First string; </param>
+            /// <param name="name2"> Second string; </param>
+            /// <returns> A comparison integer between two strings based on lexicographical order; </returns>
+            public static int AlnumSort(string name1, string name2) => name1.IsolatePathEnd("\\/").CompareTo(name2.IsolatePathEnd("\\/"));
         }
     }
 }
