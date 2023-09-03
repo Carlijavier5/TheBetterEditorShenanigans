@@ -28,7 +28,7 @@ namespace ModelAssetDatabase {
                 prefabIDs = new List<string>();
                 modelIDs = new List<string>();
             }
-        } /// <summary> The folder path of the category selected in the GUI; </summary>
+        } /// <summary> The folder path of the folder selected in the GUI; </summary>
         public string SelectedFolder { get; private set; }
 
         /// <summary> A dictionary of dictionaries mapping a folder name to it's folder dictionary;

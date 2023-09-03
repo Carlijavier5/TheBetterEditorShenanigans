@@ -1,5 +1,8 @@
 using UnityEngine;
+using UnityEditor;
 using CJUtils;
+using ModelAssetDatabase.MADUtils;
+using ModelAssetDatabase.MADShaderUtility;
 
 namespace ModelAssetDatabase {
 
@@ -59,13 +62,124 @@ namespace ModelAssetDatabase {
                 MaterialManager = Tool as MaterialManager;
             } else Debug.LogError(INVALID_MANAGER);
         }
+
+        /// <summary>
+        /// Override to choose how the tab reacts to the hierarchy builder;
+        /// </summary>
+        public virtual void SetSelectedAsset(string path) {
+            Debug.LogWarning("You shouldn't be able to select this, it's not even implemented >.>");
+        }
     }
 
-    public class MaterialTabEditor : MaterialTab {
+    /// <summary>
+    /// A subset of material tabs that requires specific material manipulation;
+    /// </summary>
+    public abstract class MaterialModifierTab : MaterialTab {
+        public class ManagedMaterialData {
+            public string path;
+            public Material material;
 
+            public ManagedMaterialData(string path, Material material) {
+                this.path = path;
+                this.material = material;
+            }
+        }
+        protected ManagedMaterialData managedMaterial;
+
+        protected MaterialEditorBundle materialEditor;
+
+        /// <summary>
+        /// Creates a material editor if one is not available;
+        /// </summary>
+        protected void ExtractMaterialEditor() => materialEditor = MaterialEditorBundle.CreateBundle(managedMaterial.material);
+
+        /// <summary>
+        /// A shorthand for drawing the extracted editor;
+        /// </summary>
+        protected void DrawMaterialEditor() => materialEditor.DrawEditor();
+
+        /// <summary>
+        /// Clean the material editor;
+        /// </summary>
+        protected void CleanMaterialEditor() => DestroyImmediate(materialEditor);
+
+        /// <summary>
+        /// A method group to use on the Shader Popups and replace a target material's shader;
+        /// </summary>
+        /// <param name="shader"> Shader obtained from the Shader Popup utilities; </param>
+        public void ReplaceMaterialShader(Shader shader) {
+            if (managedMaterial != null && materialEditor != null) {
+                if (managedMaterial.material.shader == shader) return;
+                materialEditor.editor.SetShader(shader);
+            } else Debug.LogWarning("Shader could not be set;");
+        }
     }
 
-    public class MaterialTabCreator : MaterialTab {
+    public class MaterialTabEditor : MaterialModifierTab {
+
+        private Vector2 editorScroll;
+
+        public override void ResetData() {
+            CleanMaterialEditor();
+            MaterialManager.CleanPreview();
+        }
+
+        /// <summary>
+        /// Set the currently edited material data;
+        /// </summary>
+        /// <param name="path"> Path of the Material to read; </param>
+        public override void SetSelectedAsset(string path) {
+            ResetData();
+            MaterialManager.SetPreviewTarget(MaterialManager.PreviewTarget.Sphere);
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            managedMaterial = new ManagedMaterialData(path, material);
+        }
+
+        public override void ShowGUI() {
+            if (managedMaterial == null) {
+                EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
+            } else {
+                float panelWidth = 620;
+                if (materialEditor == null) ExtractMaterialEditor();
+                using (new EditorGUILayout.HorizontalScope()) {
+                    /// Editor side of the Editor Tab;
+                    using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2))) {
+                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                            using (new EditorGUILayout.VerticalScope()) {
+                                using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                                    using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
+                                        GUILayout.Label("Material Editor", UIStyles.CenteredLabelBold);
+                                    }
+                                } using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                                    GUILayout.Label("Shader:");
+                                    Rect shaderPosition = EditorGUILayout.GetControlRect(GUILayout.MinWidth(105));
+                                    GUIContent shaderContent = new GUIContent(managedMaterial.material.shader == null
+                                                                              ? "Missing Shader" : managedMaterial.material.shader.name);
+                                    MADShaderUtils.DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
+                                    Rect historyPosition = EditorGUILayout.GetControlRect(GUILayout.Width(38));
+                                    MADShaderUtils.DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
+                                } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
+                                    using (var view = new EditorGUILayout.ScrollViewScope(editorScroll)) {
+                                        editorScroll = view.scrollPosition;
+                                        DrawMaterialEditor();
+                                    }
+                                }
+                            }
+                        }
+                    } /// Preview side of the Editor Tab;
+                    using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
+                        EditorUtils.WindowBoxLabel("Material Preview");
+                        MaterialManager.DrawMaterialPreview();
+                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
+                            MaterialManager.DrawMaterialPreviewOptions();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public class MaterialTabCreator : MaterialModifierTab {
 
     }
 

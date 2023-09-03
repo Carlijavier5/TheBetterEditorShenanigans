@@ -22,30 +22,15 @@ namespace ModelAssetDatabase {
         } /// <summary> Section currently selected in the GUI; </summary>
         public SectionType ActiveSection { get; private set; }
 
-        public class ManagedMaterialData {
-            public string path;
-            public Material material;
-
-            public ManagedMaterialData(string path, Material material) {
-                this.path = path;
-                this.material = material;
-            }
-        }
-        public ManagedMaterialData EditedMaterial { get; private set; }
-
         private GameObject previewTarget;
         private GenericPreview preview;
 
-        private MaterialEditorBundle materialEditor;
-
         private MADAssets customPrefabs;
-
-        private Vector2 editorScroll;
 
         // Remove
         private static bool abbreviateEditMode;
 
-        #region | Global Methods |
+        #region | Initialization & Cleanup |
 
         protected override void InitializeData() {
             if (customPrefabs == null) customPrefabs = ConfigurationCore.ToolAssets;
@@ -58,28 +43,14 @@ namespace ModelAssetDatabase {
             };
         }
 
-        public override void ResetData() {
-            CleanMaterialEditor();
-            CleanPreview();
-        }
+        public override void ResetData() => tabs[(int) ActiveSection].ResetData();
+        public override void FlushData() => CleanPreviewTarget();
 
         /// <summary>
-        /// Dispose of unmanaged resources in the Material Manager;
+        /// Change the selected asset in the active tab;
         /// </summary>
-        public override void FlushData() {
-            ResetData();
-            CleanPreviewTarget();
-        }
-
-        public override void SetSelectedAsset(string path) {
-            switch (ActiveSection) {
-                case SectionType.Editor:
-                    SetEditedMaterial(path);
-                    break;
-                case SectionType.Replacer:
-                    break;
-            }
-        }
+        /// <param name="path"> Path to the selected asset; </param>
+        public override void SetSelectedAsset(string path) => tabs[(int) ActiveSection].SetSelectedAsset(path);
 
         /// <summary>
         /// Sets the GUI's selected Manager Section;
@@ -88,36 +59,6 @@ namespace ModelAssetDatabase {
         private void SetSelectedSection(SectionType sectionType) {
             ActiveSection = sectionType;
         }
-
-        #endregion
-
-        #region | Editor Methods |
-
-        /// <summary>
-        /// Set the currently edited material data;
-        /// </summary>
-        /// <param name="path"> Path of the Material to read; </param>
-        public void SetEditedMaterial(string path) {
-            FlushData();
-            SetPreviewTarget(PreviewTarget.Sphere);
-            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            EditedMaterial = new ManagedMaterialData(path, material);
-        }
-
-        /// <summary>
-        /// Creates a material editor if one is not available;
-        /// </summary>
-        private void ExtractMaterialEditor() => materialEditor = MaterialEditorBundle.CreateBundle(EditedMaterial.material);
-
-        /// <summary>
-        /// A shorthand for drawing the extracted editor;
-        /// </summary>
-        private void DrawMaterialEditor() => materialEditor.DrawEditor();
-
-        /// <summary>
-        /// Clean the material editor;
-        /// </summary>
-        private void CleanMaterialEditor() => DestroyImmediate(materialEditor);
 
         #endregion
 
@@ -146,76 +87,13 @@ namespace ModelAssetDatabase {
         /// <summary>
         /// Select a GUI display based on the currently active section;
         /// </summary>
-        public override void ShowGUI() {
-            switch (ActiveSection) {
-                case SectionType.Editor:
-                    ShowEditorSection();
-                    break;
-                case SectionType.Creator:
-                    ShowCreatorSection();
-                    break;
-                case SectionType.Organizer:
-                    ShowOrganizerSection();
-                    break;
-                case SectionType.Replacer:
-                    ShowReplacerSection();
-                    break;
-            }
-        }
+        public override void ShowGUI() => tabs[(int) ActiveSection].ShowGUI();
 
-        #region | Editor Section |
+        #endregion
 
-        private void ShowEditorSection() {
-            if (EditedMaterial == null) {
-                EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
-            } else {
-                float panelWidth = 620;
-                if (materialEditor == null) ExtractMaterialEditor();
-                using (new EditorGUILayout.HorizontalScope()) {
-                    /// Editor side of the Editor Tab;
-                    using (new EditorGUILayout.VerticalScope(GUILayout.Width(panelWidth / 2))) {
-                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                            using (new EditorGUILayout.VerticalScope()) {
-                                using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                                    using (new EditorGUILayout.HorizontalScope(GUI.skin.box)) {
-                                        GUILayout.Label("Material Editor", UIStyles.CenteredLabelBold);
-                                    }
-                                } using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                                    GUILayout.Label("Shader:");
-                                    Rect shaderPosition = EditorGUILayout.GetControlRect(GUILayout.MinWidth(105));
-                                    GUIContent shaderContent = new GUIContent(EditedMaterial.material.shader == null
-                                                                              ? "Missing Shader" : EditedMaterial.material.shader.name);
-                                    MADShaderUtils.DrawDefaultShaderPopup(shaderPosition, shaderContent, ReplaceMaterialShader);
-                                    Rect historyPosition = EditorGUILayout.GetControlRect(GUILayout.Width(38));
-                                    MADShaderUtils.DrawShaderHistoryPopup(historyPosition, ReplaceMaterialShader);
-                                } using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox)) {
-                                    using (var view = new EditorGUILayout.ScrollViewScope(editorScroll)) {
-                                        editorScroll = view.scrollPosition;
-                                        DrawMaterialEditor();
-                                    }
-                                }
-                            }
-                        }
-                    } /// Preview side of the Editor Tab;
-                    using (new EditorGUILayout.VerticalScope(UIStyles.WindowBox, GUILayout.Width(panelWidth / 2))) {
-                        EditorUtils.WindowBoxLabel("Material Preview");
-                        DrawMaterialPreview();
-                        using (new EditorGUILayout.HorizontalScope(UIStyles.WindowBox)) {
-                            DrawMaterialPreviewOptions();
-                        }
-                    }
-                }
-            }
-        }
+        #region | Preview Helpers |
 
-        private void ReplaceMaterialShader(Shader shader) {
-            if (EditedMaterial != null && materialEditor is not null) {
-                if (EditedMaterial.material.shader == shader) return;
-                materialEditor.editor.SetShader(shader);
-            } else Debug.LogWarning("Shader could not be set;");
-        }
-
-        private void DrawMaterialPreview() {
+        public void DrawMaterialPreview() {
             Rect rect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             if (preview == null) {
                 if (previewTarget != null) {
@@ -227,23 +105,31 @@ namespace ModelAssetDatabase {
             }
         }
 
-        private enum PreviewTarget {
+        public enum PreviewTarget {
             Sphere,
             Cube,
             Other
-        } private static PreviewTarget activeTarget;
+        } private PreviewTarget activeTarget;
 
-        private void DrawMaterialPreviewOptions() {
+        /// <summary>
+        /// Draw an Enum Popup to choose the preview target;
+        /// </summary>
+        public void DrawMaterialPreviewOptions() {
             GUILayout.Label("Preview Object:");
             PreviewTarget selection = (PreviewTarget) EditorGUILayout.EnumPopup(activeTarget);
             if (activeTarget != selection) SetPreviewTarget(selection);
+            /// If an object must be selected for preview, wait until the object is assigned;
             if (activeTarget == PreviewTarget.Other) {
                 GameObject potentialObject = EditorGUILayout.ObjectField(previewTarget, typeof(GameObject), false) as GameObject;
                 if (potentialObject != previewTarget) SetPreviewObject(potentialObject);
             }
         }
 
-        private void SetPreviewTarget(PreviewTarget selection) {
+        /// <summary>
+        /// Define the target preview object and call for the object creation;
+        /// </summary>
+        /// <param name="selection"> Selected target preview; </param>
+        public void SetPreviewTarget(PreviewTarget selection) {
             CleanPreview();
             previewTarget = null;
             switch (selection) {
@@ -256,7 +142,12 @@ namespace ModelAssetDatabase {
             } activeTarget = selection;
         }
 
-        private void SetPreviewObject(GameObject gameObject) {
+        /// <summary>
+        /// Create a preview object whose materials slots are replaced by the target material;
+        /// </summary>
+        /// <param name="gameObject"> Object to preview; </param>
+        /// <param name="material"> Material to place in the material slots of the preview object; </param>
+        private void SetPreviewObject(GameObject gameObject, Material material = null) {
             previewTarget = Instantiate(gameObject);
             Renderer[] renderers = previewTarget.GetComponentsInChildren<Renderer>();
             foreach (Renderer renderer in renderers) {
@@ -267,14 +158,20 @@ namespace ModelAssetDatabase {
             } CleanPreview();
         }
 
-        private void CleanPreview() => DestroyImmediate(preview);
+        /// <summary>
+        /// Destroy the active Material Preview, if any;
+        /// </summary>
+        public void CleanPreview() => DestroyImmediate(preview);
 
+        /// <summary>
+        /// Destroy the active Preview Object, if any;
+        /// </summary>
         private void CleanPreviewTarget() => DestroyImmediate(previewTarget);
 
         #endregion
 
         private void ShowCreatorSection() {
-            if (EditedMaterial == null) {
+            if (null != null) {
                 EditorUtils.DrawScopeCenteredText("Select a Material from the Hierarchy to begin;");
             } else {
                 using (new EditorGUILayout.HorizontalScope()) {
@@ -335,7 +232,5 @@ namespace ModelAssetDatabase {
         private void ShowReplacerSection() {
 
         }
-
-        #endregion
     }
 }
